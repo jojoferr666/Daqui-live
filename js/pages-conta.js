@@ -46,20 +46,6 @@ PAGES.entrar = () => {
           ${authErr.net ? `<p class="err" role="alert">${T('Não foi possível ligar à base de dados. Verifique a internet e tente outra vez.', 'Could not reach the database. Check your connection and try again.')}</p>` : ''}
           <button class="btn btn-green btn-block" type="submit">${T('Criar conta', 'Create account')}</button></form>`}`}
     </div>
-    <aside class="auth-side">
-      <h2 class="h3">${T('Contas de demonstração', 'Demo accounts')}</h2>
-      <ul class="demo-acc">
-        <li><b>maria</b> ${T('ou', 'or')} 912 345 678<br><span class="muted">${T('Palavra-passe', 'Password')}: daqui2026</span><br><span class="small">${T('Caixa Mista semanal, inscrita num Colhe Connosco', 'Weekly Mixed Box, signed up for Join the Harvest')}</span></li>
-        <li><b>joao</b> ${T('ou', 'or')} 913 222 111<br><span class="muted">${T('Palavra-passe', 'Password')}: daqui2026</span><br><span class="small">${T('Caixa de Fruta quinzenal, cujo preço baixou', 'Fortnightly Fruit Box whose price went down')}</span></li>
-        <li><b>gestao</b><br><span class="muted">${T('Palavra-passe', 'Password')}: gestao2026</span><br><span class="small">${T('Equipa Daqui: pedidos, estado das encomendas, catálogo, preços, caixas, Colhe Connosco e contas', 'Daqui team: requests, order status, catalogue, prices, boxes, Join the Harvest and accounts')}</span></li>
-        <li><b>agr.joaquim</b> ${T('ou', 'or')} 914 000 101<br><span class="muted">${T('Palavra-passe', 'Password')}: daqui2026</span><br><span class="small">${T('Agricultor: área de parceiro com produtos, stock e Colhe Connosco', 'Farmer: partner area with produce, stock and Join the Harvest')}</span></li>
-        <li><b>rest.mesa-da-ria</b> ${T('ou', 'or')} 234 000 101<br><span class="muted">${T('Palavra-passe', 'Password')}: daqui2026</span><br><span class="small">${T('Restaurante Mesa da Ria: prato da semana e menu', 'Mesa da Ria restaurant: dish of the week and menu')}</span></li>
-      </ul>
-      <details class="demo-more mt-s"><summary class="link">${T('Contas de todas as quintas e restaurantes', 'Accounts for every farm and restaurant')}</summary>
-        <p class="small muted mt-s">${T('Palavra-passe de todas: daqui2026. Também pode entrar com o telemóvel.', 'Password for all of them: daqui2026. You can also sign in with the mobile number.')}</p>
-        <table class="tbl small"><tbody>${seedAccounts().filter(a => a.extra.partner).map(a => `<tr><td><b>${a.username}</b></td><td>${esc(a.extra.partner.farm || a.extra.partner.name)}</td><td class="nowrap">${a.phone}</td></tr>`).join('')}</tbody></table></details>
-      <p class="note small mt">${icon('alert', 20)}<span>${NUVEM.on ? T('As contas ficam na base de dados da Daqui: a mesma conta funciona em qualquer computador ou telemóvel. É uma demonstração: não use uma palavra-passe verdadeira.', 'Accounts are stored in the Daqui database: the same account works on any computer or phone. This is a demo: don\'t use a real password.') : T('Demonstração: as contas ficam guardadas apenas neste navegador. Não use uma palavra-passe verdadeira.', 'Demo: accounts are stored only in this browser. Don\'t use a real password.')}</span></p>
-    </aside>
   </div><div class="spacer"></div>`;
   return { title: authMode === 'registo' ? T('Criar conta', 'Create account') : T('Entrar', 'Sign in'), html };
 };
@@ -147,7 +133,7 @@ PAGES.conta = () => {
   <div class="wrap account">
     ${nova ? `<p class="note done" role="status">${icon('check', 22)}<span><b>${T('Subscrição confirmada', 'Subscription confirmed')}: ${esc(L(P(nova.box).name))}.</b> ${T('Primeira entrega', 'First delivery')}: ${slotLabel(nova.first)}. ${T('Preço guardado durante 12 meses.', 'Price saved for 12 months.')}</span></p>` : ''}
     ${u.role === 'admin' ? adminPanel() : `
-    <nav class="acc-nav" aria-label="${T('Secções da conta', 'Account sections')}">${[['encomendas', T('Encomendas', 'Orders')], ['subscricoes', T('Subscrições', 'Subscriptions')], ['colhe', JTH()], ['preferencias', T('Favoritos e exclusões', 'Favourites and exclusions')], ['dados', T('Dados e morada', 'Details and address')]].map(([k, n]) => `<a class="chip" href="#${k}">${n}</a>`).join('')}<button class="chip" data-chat-open>${icon('chat', 16)} ${T('Falar com a Daqui', 'Talk to Daqui')}</button></nav>
+    <nav class="acc-nav" aria-label="${T('Secções da conta', 'Account sections')}">${[['encomendas', T('Encomendas', 'Orders')], ['subscricoes', T('Subscrições', 'Subscriptions')], ['colhe', JTH()], ['preferencias', T('Favoritos e exclusões', 'Favourites and exclusions')], ['dados', T('Dados e palavra-passe', 'Details and password')]].map(([k, n]) => `<a class="chip" href="#${k}">${n}</a>`).join('')}<button class="chip" data-chat-open>${icon('chat', 16)} ${T('Falar com a Daqui', 'Talk to Daqui')}</button></nav>
     <section class="acc-sec" id="encomendas"><div class="row-between mb-s"><h2>${T('Histórico de encomendas', 'Order history')}</h2><a class="btn btn-green btn-sm" href="${href('produtos')}">${T('Nova encomenda', 'New order')}</a></div>
       ${myOrders.length ? myOrders.map(orderCard).join('') : `<p class="muted">${T('Ainda não fez nenhuma encomenda com esta conta.', 'You haven\'t placed any orders with this account yet.')}</p>`}</section>
     <section class="acc-sec" id="subscricoes"><div class="row-between mb-s"><h2>${T('As minhas subscrições', 'My subscriptions')}</h2><a class="btn btn-green btn-sm" href="${href('subscricao')}">${T('Nova subscrição', 'New subscription')}</a></div>
@@ -171,6 +157,7 @@ PAGES.conta = () => {
       ${notif.length ? `<ul class="hlist">${notif.map(p => `<li class="hrow"><span class="thumb">${artFor(p)}</span><div><a href="${href('produtos/' + p.id)}"><b>${esc(L(p.name))}</b></a><br><span class="small muted">${inSeason(p) ? T('Já está disponível', 'Available now') : T('Volta em', 'Back in') + ' ' + monthName(p.season[0])}</span></div><button class="link" data-notify-rm="${p.id}">${T('Remover', 'Remove')}</button></li>`).join('')}</ul>` : `<p class="muted">${T('Nos produtos fora de época, carregue em "Avisar-me" para saber quando voltam.', 'On out-of-season products, tap "Notify me" to know when they\'re back.')}</p>`}</section>`}
     <section class="acc-sec" id="dados"><h2 class="mb-s">${T('Dados da conta', 'Account details')}</h2>
       <dl class="dl cols2"><div><dt>${T('Nome', 'Name')}</dt><dd>${esc(u.name)}</dd></div><div><dt>${T('Nome de utilizador', 'Username')}</dt><dd>${esc(u.username)}</dd></div><div><dt>${T('Telemóvel', 'Mobile')}</dt><dd>${esc(u.phone)}</dd></div><div><dt>${T('Cliente desde', 'Customer since')}</dt><dd>${fdate(u.created, { day: 'numeric', month: 'long', year: 'numeric' })}</dd></div></dl>
+      ${passBox(u)}
       ${u.role === 'admin' ? '' : `<h3 class="mt">${T('Morada de entrega', 'Delivery address')}</h3>
       <p class="small muted">${T('É usada nas encomendas e subscrições com entrega em casa.', 'Used for orders and subscriptions with home delivery.')}</p>
       <form class="form mt-s" data-addr-form novalidate>
@@ -182,6 +169,37 @@ PAGES.conta = () => {
   </div><div class="spacer"></div>`;
   return { title: T('A minha conta', 'My account'), html, after: () => { const sec = QS.get('sec'); if (sec) setTimeout(() => document.getElementById(sec)?.scrollIntoView(), 60); } };
 };
+/* alterar a palavra-passe (em "Dados da conta": clientes, agricultores, restaurantes e gestão; no site e na app) */
+function passBox(u) {
+  const pf = (id, label, ac, hint = '') => `<div class="field"><label for="${id}">${label}</label><div class="pw"><input id="${id}" type="password" autocomplete="${ac}" required><button type="button" class="pw-t" data-pw="${id}" aria-label="${T('Mostrar palavra-passe', 'Show password')}">${icon('eye', 20)}</button></div>${hint ? `<span class="small muted">${hint}</span>` : ''}</div>`;
+  return `<details class="pw-box mt" id="palavra-passe"><summary>${icon('lock', 18)} ${T('Alterar palavra-passe', 'Change password')}</summary>
+    <form class="form mt-s" data-pass-form novalidate>
+      <input type="text" autocomplete="username" value="${esc(u.username)}" hidden>
+      ${pf('pw-cur', T('Palavra-passe atual', 'Current password'), 'current-password')}
+      ${pf('pw-new', T('Nova palavra-passe', 'New password'), 'new-password', T('Mínimo de 8 caracteres.', 'At least 8 characters.'))}
+      ${pf('pw-new2', T('Repetir a nova palavra-passe', 'Repeat the new password'), 'new-password')}
+      <p class="err" role="alert" hidden></p>
+      <button class="btn btn-green btn-sm" type="submit">${T('Guardar nova palavra-passe', 'Save new password')}</button>
+    </form></details>`;
+}
+PAGE_EVENTS.submit.push((e, f) => {
+  if (!f.matches('[data-pass-form]')) return; e.preventDefault(); if (!validate(f)) return true;
+  const err = $('.err', f), btn = $('button[type="submit"]', f), cur = $('#pw-cur', f), nw = $('#pw-new', f), nw2 = $('#pw-new2', f);
+  const show = (msg, el) => { err.hidden = false; err.textContent = msg; if (el) { el.setAttribute('aria-invalid', 'true'); el.focus(); } return true; };
+  if (nw.value.length < 8) return show(T('A nova palavra-passe tem de ter pelo menos 8 caracteres.', 'The new password must have at least 8 characters.'), nw);
+  if (nw.value !== nw2.value) return show(T('As duas novas palavras-passe não são iguais.', 'The two new passwords don\'t match.'), nw2);
+  const msgs = { cur: [T('A palavra-passe atual não está certa.', 'The current password is wrong.'), cur], short: [T('A nova palavra-passe tem de ter pelo menos 8 caracteres.', 'The new password must have at least 8 characters.'), nw],
+    same: [T('A nova palavra-passe tem de ser diferente da atual.', 'The new password must be different from the current one.'), nw], weak: [T('A nova palavra-passe é demasiado fraca. Junte números ou outros caracteres.', 'The new password is too weak. Add numbers or other characters.'), nw],
+    reauth: [T('Por segurança, termine a sessão, volte a entrar e tente outra vez.', 'For security, sign out, sign in again and try once more.')], session: [T('A sessão terminou. Volte a entrar e tente outra vez.', 'Your session ended. Sign in again and try once more.')] };
+  btn.disabled = true; btn.classList.add('busy');
+  Promise.resolve(changePassword(cur.value, nw.value)).then(r => {
+    btn.disabled = false; btn.classList.remove('busy');
+    if (r) { const [m, el] = msgs[r] || [T('Não foi possível alterar a palavra-passe.', 'Could not change the password.')]; return show(m, el); }
+    f.reset(); err.hidden = true; f.closest('details')?.removeAttribute('open');
+    toast(T('Palavra-passe alterada', 'Password changed'));
+  }, x => { console.error(x); btn.disabled = false; btn.classList.remove('busy'); show(T('Não foi possível ligar à base de dados. Verifique a internet e tente outra vez.', 'Could not reach the database. Check your connection and try again.')); });
+  return true;
+});
 let BACK = (() => { const b = QS.get('voltar') || ''; return /^subscricao\/[a-z0-9-]+$/.test(b) ? b : ''; })();
 function rerenderKeep(sel) { const y = scrollY; render(); scrollTo(0, y); if (sel) $(sel)?.focus(); }
 PAGE_EVENTS.click.push((e, t, d) => {

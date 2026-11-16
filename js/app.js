@@ -117,15 +117,17 @@ function harvestWindow(d) {
   const start = m ? at(m[1], m[2]) : at(0, 0), end = m ? at(m[3], m[4]) : at(23, 59);
   return { start, end, close: new Date(end.getTime() + 48 * 3600e3) };
 }
-
-/* horário livre: "09:30" e "12:30" → "9h30–12h30"; e ao contrário, para o formulário de edição */
+/* horário livre: "09:30" e "12:30" → "9h30–12h30"; e ao contrário, para preencher o formulário de edição */
 const hhmm = v => { const [h, m] = v.split(':'); return +h + 'h' + (m === '00' ? '' : m); };
 const timeText = (a, b) => hhmm(a) + '–' + hhmm(b);
 function timeParts(t) {
   const m = String(t || '').match(/(\d{1,2})h(\d{2})?\D+(\d{1,2})h(\d{2})?/), p = (h, mi) => String(h).padStart(2, '0') + ':' + (mi || '00');
   return m ? [p(m[1], m[2]), p(m[3], m[4])] : ['10:00', '13:00'];
 }
-
+/* campos "Início" e "Fim" (hora livre) usados nos formulários do Colhe Connosco */
+const timeFields = (pre, t) => { const [a, b] = t ? timeParts(t) : ['10:00', '13:00'];
+  return `<div class="field"><label for="${pre}-ini">${T('Início', 'Start')}</label><input id="${pre}-ini" type="time" value="${a}" required></div><div class="field"><label for="${pre}-fim">${T('Fim', 'End')}</label><input id="${pre}-fim" type="time" value="${b}" required></div>`; };
+const timeBad = pre => $(`#${pre}-fim`).value <= $(`#${pre}-ini`).value ? T('A hora de fim tem de ser depois da hora de início.', 'The end time must be after the start time.') : '';
 const harvestStarted = d => new Date() >= harvestWindow(d).start;
 const harvestPast = d => new Date() >= harvestWindow(d).end;
 const harvestRateOpen = d => { const w = harvestWindow(d), n = new Date(); return n >= w.start && n <= w.close; };

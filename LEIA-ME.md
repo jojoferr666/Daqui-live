@@ -586,3 +586,10 @@ Base de dados: corra `supabase/06-melhorias.sql` (uma vez; pode repetir). Sem el
 - **App**: as contas de agricultor, restaurante e gestão têm agora as ligações para Termos de utilização, Privacidade, Cookies e Devoluções.
 - **Correção**: em "Gerir encomenda" e "Seguir entrega", a janela já não volta a abrir sozinha depois de fechada.
 
+
+## 25. Versão 8: o que mudou
+
+- **Colhe Connosco com hora livre**: nos formulários da gestão (novo dia) e do agricultor (propor e editar dia) há agora dois campos, *Início* e *Fim*, em vez de uma lista de horários. O horário continua a ser gravado como texto (ex.: "9h45–12h15"), por isso a base de dados não muda.
+- **Login sem contas de demonstração**: a página Entrar (site e app) já não mostra a lista de contas nem as palavras-passe. As contas continuam a existir.
+- **Alterar palavra-passe**: em *Dados da conta* (site: A minha conta → Dados; app: Conta → Dados e morada; gestão na app: Mais → Dados e palavra-passe) há "Alterar palavra-passe". Pede a palavra-passe atual, a nova (mínimo 8 caracteres) e a repetição. Com base de dados, a troca é feita no Supabase Auth; sem base de dados, fica guardada neste navegador.
+- Ficheiros alterados: js/app.js, js/auth.js, js/nuvem.js, js/pages-conta.js, js/pages-gestao.js, js/pages-parceiro.js, js/app-movel.js, css/styles.css, app/index.html, app/sw.js, ferramentas/gerar-paginas.py. Sem SQL novo.

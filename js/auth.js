@@ -86,6 +86,16 @@ function signOut() { if (NUVEM.on) NUVEM.signOut(); store.del(SESSION_KEY); }
 /* devolve { erros: {campo: código} } ou { user } */
 const validEmail = s => /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(String(s || '').trim());
 /* verificações de formato comuns aos dois modos; devolve { campo: código } */
+/* trocar a palavra-passe da conta com sessão iniciada: confirma a atual e grava a nova.
+   Devolve '' quando corre bem, ou o motivo: 'cur' (atual errada), 'short', 'same', 'weak', 'session'. */
+async function changePassword(cur, nw) {
+  if (String(nw || '').length < 8) return 'short';
+  if (nw === cur) return 'same';
+  if (NUVEM.on) return NUVEM.changePassword(cur, nw);
+  const u = currentUser(); if (!u) return 'session';
+  if (u.hash !== hashPass(u.salt, cur)) return 'cur';
+  u.salt = newSalt(); u.hash = hashPass(u.salt, nw); saveUsers(); return '';
+}
 function registerErrors({ name, username, phone, email, pass, pass2, role, farm, place, restName }, local = true) {
   const e = {}; const un = String(username || '').trim().toLowerCase(); const ph = normPhone(phone);
   if (!String(name || '').trim()) e.name = 'req';

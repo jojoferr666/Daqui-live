@@ -608,7 +608,7 @@ a.pname:hover{text-decoration:underline;text-underline-offset:.15em}
 .dl select{border:1.5px solid #C9D3A9;border-radius:10px;padding:.25em .5em;background:var(--white);font-weight:700}
 
 /* entrar / conta */
-.auth{display:grid;grid-template-columns:minmax(0,560px) minmax(0,1fr);gap:34px;align-items:start;padding-top:24px}
+.auth{display:grid;grid-template-columns:minmax(0,560px);justify-content:center;gap:34px;align-items:start;padding-top:24px}
 .auth-box{display:grid;gap:18px;padding:30px}
 .tabs{display:flex;background:var(--sage);border-radius:999px;padding:4px}
 .tabs button{flex:1;border:0;background:none;border-radius:999px;padding:.6em 1em;font-weight:700}
@@ -895,3 +895,8 @@ button.busy{opacity:.65;cursor:progress}
 .chat-box{font-size:.95rem}.chat-h b{font-size:1.15rem}.chat-h .small{font-size:.78rem;opacity:.9}
 .chat-box .msg p{font-size:.95rem}.chat-box .chat-demo{font-size:.8rem}.chat-box .chat-f textarea{font-size:.95rem}
 .chat-box .chat-guest .field{margin-bottom:8px}
+/* alterar palavra-passe (Dados da conta) */
+.pw-box{border:1px solid var(--line);border-radius:var(--r-md);padding:12px 16px;max-width:560px}
+.pw-box summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;font-weight:600;color:var(--campo)}
+.pw-box summary::-webkit-details-marker{display:none}
+.pw-box[open] summary{margin-bottom:4px}

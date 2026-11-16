@@ -349,6 +349,23 @@ const NUVEM = (() => {
     await loadPeople(); rtConnect();
     return currentUser();
   };
+  /* palavra-passe: confirma a atual (entrando outra vez com ela) e só depois grava a nova no Supabase Auth */
+  N.changePassword = async (cur, nw) => {
+    if (!sess) return 'session';
+    const who = await http('GET', '/auth/v1/user'), email = who && who.email;
+    if (!email) return 'session';
+    try { setSession(await authPost('token?grant_type=password', { email, password: cur })); }
+    catch (e) { if (e.status === 400 || e.status === 401) return 'cur'; throw e; }
+    try { await http('PUT', '/auth/v1/user', { password: nw }); }
+    catch (e) {
+      const c = `${e.code || ''} ${e.message}`;
+      if (/same_password|different from the old/i.test(c)) return 'same';
+      if (/reauthentication/i.test(c)) return 'reauth';
+      if (/weak|password/i.test(c)) return 'weak';
+      throw e;
+    }
+    return '';
+  };
   N.register = async data => {
     const e = registerErrors(data, false); if (Object.keys(e).length) return { errors: e };
     const un = String(data.username).trim().toLowerCase(), ph = normPhone(data.phone), email = String(data.email).trim().toLowerCase();

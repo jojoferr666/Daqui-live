@@ -10,7 +10,6 @@ let adminTab = ADMIN_TABS.includes(QS.get('tab')) ? QS.get('tab') : 'pedidos';
 let inboxFilter = 'novo', catQuery = '', catFilter = 'all', accFilter = 'all';
 const monthOpts = sel => Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}"${+sel === i + 1 ? ' selected' : ''}>${monthName(i + 1, 'short')}</option>`).join('');
 const UNIT_OPTS = sel => [['kg', 'kg'], ['un', T('unidade', 'each')], ['molho', T('molho', 'bunch')], ['cuv', T('cuvete', 'punnet')]].map(([v, n]) => `<option value="${v}"${sel === v ? ' selected' : ''}>${n}</option>`).join('');
-const TIME_OPTS = ['9h30–12h30', '10h–13h', '15h–18h', '16h–19h'];
 
 function adminPanel() {
   const clients = Object.values(USERS).filter(x => x.role !== 'admin');
@@ -262,7 +261,7 @@ function tabColhe() {
       <td><button class="rm" data-day-del="${d.date}" aria-label="${T('Apagar dia', 'Delete day')}">${icon('trash', 18)}</button></td></tr>`; }).join('')}</tbody></table></div>
     <form class="form panel mt" data-newday novalidate><h3>${T('Adicionar dia', 'Add a day')}</h3>
       <div class="row"><div class="field"><label for="nd-date">${T('Data', 'Date')}</label><input id="nd-date" type="date" min="${iso(today())}" required></div>
-        <div class="field"><label for="nd-ini">${T('Início', 'Start')}</label><input id="nd-ini" type="time" value="10:00" required></div><div class="field"><label for="nd-fim">${T('Fim', 'End')}</label><input id="nd-fim" type="time" value="13:00" required></div></div>
+        ${timeFields('nd')}</div>
       <div class="row"><div class="field"><label for="nd-farm">${T('Quinta', 'Farm')}</label><select id="nd-farm" data-nd-farm>${FARMERS.map(f => `<option value="${f.id}">${esc(f.farm)} (${esc(f.name)})</option>`).join('')}</select></div>
         <div class="field"><label for="nd-prod">${T('Produto a colher', 'Produce to pick')}</label><select id="nd-prod">${prodOpts(f0.id)}</select></div></div>
       <div class="field"><label for="nd-spots">${T('Máximo de participantes', 'Maximum participants')}</label><input id="nd-spots" type="number" min="1" value="30" required></div>
@@ -372,8 +371,9 @@ PAGE_EVENTS.submit.push((e, f) => {
   if (f.matches('[data-newday]')) {
     e.preventDefault(); if (!validate(f)) return true;
     const p = P($('#nd-prod').value), date = $('#nd-date').value;
+    if (timeBad('nd')) { const err = $('.err', f); err.hidden = false; err.textContent = timeBad('nd'); $('#nd-fim').focus(); return true; }
     if (HARVEST_DAYS.some(x => x.date === date)) { const err = $('.err', f); err.hidden = false; err.textContent = T('Já existe um dia Colhe Connosco nessa data.', 'There is already a Join the Harvest day on that date.'); return true; }
-    const day = { date, farmer: $('#nd-farm').value, crop: p ? p.art || 'alface' : 'alface', what: p ? { pt: p.name.pt, en: p.name.en } : { pt: '-', en: '-' }, time: $('#nd-time').value, spots: +$('#nd-spots').value || 20 };
+    const day = { date, farmer: $('#nd-farm').value, crop: p ? p.art || 'alface' : 'alface', what: p ? { pt: p.name.pt, en: p.name.en } : { pt: '-', en: '-' }, time: timeText($('#nd-ini').value, $('#nd-fim').value), spots: +$('#nd-spots').value || 20 };
     saveCatalog(ch => { ch.harvestDays = HARVEST_DAYS.map(x => Object.assign({}, x)).concat(day); }); toast(T('Dia Colhe Connosco criado', 'Join the Harvest day created')); rerenderKeep(); return true;
   }
 });
