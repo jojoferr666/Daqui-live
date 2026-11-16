@@ -8,10 +8,7 @@ PAGES.parceiro = () => {
   if (!u.partner) return { title: T('Área de parceiro', 'Partner area'), html: `${crumbs([[T('Área de parceiro', 'Partner area'), 'parceiro']])}<div class="wrap page-head"><h1>${T('Área de parceiro', 'Partner area')}</h1>
     <p class="lead">${T('Esta área é para agricultores e restaurantes parceiros. Crie uma conta de parceiro para vender na Daqui ou pedir o Selo Daqui.', 'This area is for partner farmers and restaurants. Create a partner account to sell on Daqui or apply for the Daqui seal.')}</p>
     <div class="row-btns mt"><a class="btn btn-green" href="${href('entrar', 'modo=registo&tipo=agricultor')}">${T('Sou agricultor', 'I\'m a farmer')}</a><a class="btn btn-green" href="${href('entrar', 'modo=registo&tipo=restaurante')}">${T('Tenho um restaurante', 'I run a restaurant')}</a><a class="btn btn-line c-campo" href="${href('conta')}">${T('A minha conta', 'My account')}</a></div></div><div class="spacer"></div>` };
-  const pt = u.partner, farmer = pt.kind === 'agricultor';
-  const status = pt.approved
-    ? `<p class="note done">${icon('check', 22)}<span><b>${farmer ? T('Quinta parceira aprovada.', 'Approved partner farm.') : T('Selo Daqui atribuído.', 'Daqui seal awarded.')}</b> ${T('O que publicar aqui aparece logo no site.', 'What you publish here shows on the site straight away.')}</span></p>`
-    : `<p class="note">${icon('clock', 22)}<span><b>${T('Pedido em análise pela equipa Daqui.', 'Application under review by the Daqui team.')}</b> ${T('Já pode preparar o seu perfil. Fica visível no site depois da aprovação.', 'You can already prepare your profile. It becomes visible on the site once approved.')}</span></p>`;
+  const pt = u.partner, farmer = pt.kind === 'agricultor', status = partnerStatusNote(u);
   const html = `${crumbs([[T('Área de parceiro', 'Partner area'), 'parceiro']])}
   <div class="wrap page-head row-between"><div><h1>${farmer ? esc(pt.farm) : esc(pt.name)}</h1><p class="muted">${farmer ? T('Área do agricultor', 'Farmer area') : T('Área do restaurante', 'Restaurant area')}. ${esc(u.name)} (${esc(u.username)})</p></div>
     <div class="row-btns"><a class="btn btn-line c-campo" href="${href('conta')}">${T('Encomendas e conta', 'Orders and account')}</a><button class="btn btn-line c-campo" data-logout>${icon('logout', 18)}${T('Terminar sessão', 'Sign out')}</button></div></div>
@@ -19,15 +16,53 @@ PAGES.parceiro = () => {
   return { title: T('Área de parceiro', 'Partner area'), html };
 };
 
+/* estado da adesão: aprovada, em análise ou não aprovada (com a mensagem da equipa Daqui, se houver) */
+function partnerStatusNote(u) {
+  const pt = u.partner, farmer = pt.kind === 'agricultor';
+  const msg = pt.reply ? `<br><span class="small">${T('Mensagem da equipa Daqui', 'Message from the Daqui team')}: «${esc(pt.reply)}»</span>` : '';
+  if (pt.approved) return `<p class="note done">${icon('check', 22)}<span><b>${farmer ? T('Quinta parceira aprovada.', 'Approved partner farm.') : T('Selo Daqui atribuído.', 'Daqui seal awarded.')}</b> ${T('O que publicar aqui aparece logo no site.', 'What you publish here shows on the site straight away.')}${msg}</span></p>`;
+  if (pt.rejected) return `<p class="note warn">${icon('alert', 22)}<span><b>${T('O seu pedido não foi aprovado.', 'Your application was not approved.')}</b>${msg}<br><button class="link" data-partner-retry>${T('Pedir nova análise', 'Ask for a new review')}</button> · <button class="link" data-chat-open>${T('Falar com a Daqui', 'Talk to Daqui')}</button></span></p>`;
+  return `<p class="note">${icon('clock', 22)}<span><b>${T('Pedido em análise pela equipa Daqui.', 'Application under review by the Daqui team.')}</b> ${T('Já pode preparar o seu perfil. Fica visível no site depois da aprovação.', 'You can already prepare your profile. It becomes visible on the site once approved.')}</span></p>`;
+}
 /* as secções da área de parceiro, uma a uma (a app para telemóvel mostra cada uma no seu separador) */
 function partnerSections(u) { const html = u.partner.kind === 'agricultor' ? farmerArea(u) : restaurantArea(u); return html.split('<section class="acc-sec"').slice(1).map(x => '<section class="acc-sec"' + x); }
 function myRequests(u, type) { return REQUESTS.filter(r => r.partnerUser === u.username && r.type === type).sort((a, b) => b.created.localeCompare(a.created)); }
-function reqStatus(r) { return r.approved ? `<span class="status ativa">${T('Aprovado', 'Approved')}</span>` : r.status === 'tratado' ? `<span class="status pausada">${T('Analisado', 'Reviewed')}</span>` : `<span class="status prog">${T('Em análise', 'Under review')}</span>`; }
+function reqStatus(r) { const d = r.decision || (r.approved ? 'aprovado' : ''); return d === 'aprovado' ? `<span class="status ativa">${T('Aprovado', 'Approved')}</span>` : d === 'rejeitado' ? `<span class="status pausada">${T('Não aprovado', 'Not approved')}</span>` : r.status === 'tratado' ? `<span class="status pausada">${T('Analisado', 'Reviewed')}</span>` : `<span class="status prog">${T('Em análise', 'Under review')}</span>`; }
+const reqReply = r => (r.reply ? `<br><span class="small">${T('Equipa Daqui', 'Daqui team')}: «${esc(r.reply)}»</span>` : '');
+/* um produto, na lista do agricultor: só as ofertas dele contam para o stock */
+const myOffers = (p, fid) => offersOf(p).filter(o => o.farmer === fid);
+function setMyStock(p, fid, out) {
+  const offers = offersOf(p).map(o => Object.assign({}, o, o.farmer === fid ? { outOfStock: out } : {}));
+  if (NUVEM.on) { Object.assign(p, { producers: offers, outOfStock: offers.every(o => o.outOfStock) }); NUVEM.setStock(p.id, out); return; }
+  saveOffers(p, offers);
+}
+/* agricultor ou gestão: editar um dia Colhe Connosco antes de começar (data, horário, lugares, produto) */
+function editHarvestDay(oldDate, patch) {
+  const d = HARVEST_DAYS.find(x => x.date === oldDate); if (!d) return false;
+  if (patch.date !== oldDate && HARVEST_DAYS.some(x => x.date === patch.date)) return T('Já existe um dia Colhe Connosco nessa data.', 'There is already a Join the Harvest day on that date.');
+  const move = () => { if (patch.date === oldDate) return; Object.values(USERS).forEach(u => (u.harvests || []).forEach(h => { if (h.date === oldDate) h.date = patch.date; })); };
+  if (NUVEM.on) { Object.assign(d, patch); move(); HARVEST_DAYS.sort((a, b) => a.date.localeCompare(b.date)); NUVEM.editHarvestDay(oldDate, d); return true; }
+  saveCatalog(ch => { ch.harvestDays = HARVEST_DAYS.map(x => Object.assign({}, x, x.date === oldDate ? patch : {})); }); move(); saveUsers(); return true;
+}
+let editDay = '', showNewProd = false;
 
 function farmerArea(u) {
   const pt = u.partner, f = pt.farmerId ? F(pt.farmerId) : null, story = f ? f.story : (pt.story || { pt: '', en: '' });
-  const mine = f ? PRODUCTS.filter(p => p.farmer === f.id) : [];
-  const days = f ? HARVEST_DAYS.filter(d => d.farmer === f.id) : [];
+  const mine = f ? ofFarmer(f.id) : [];
+  const days = f ? HARVEST_DAYS.filter(d => d.farmer === f.id && !harvestStarted(d)) : [], done = f ? HARVEST_DAYS.filter(d => d.farmer === f.id && harvestStarted(d)).sort((a, b) => b.date.localeCompare(a.date)) : [];
+  const offerOpts = ['fruta', 'legumes'].map(c => `<optgroup label="${catName(c)}">${PRODUCTS.filter(p => p.cat === c && !(f && myOffers(p, f.id).length >= 2)).sort((a, b) => L(a.name).localeCompare(L(b.name))).map(p => { const my = f ? myOffers(p, f.id) : []; return `<option value="${p.id}">${esc(L(p.name))}${my.length ? ` (${T('já vende', 'you already sell')} ${bioName(my[0].organic).toLowerCase()})` : ''}</option>`; }).join('')}</optgroup>`).join('');
+  const dayRow = d => { const n = harvestPeople(d.date), ed = editDay === d.date;
+    return `<li class="hrow${ed ? ' editing' : ''}"><div class="date sm"><b>${fdate(d.date, { day: 'numeric' })}</b><span>${fdate(d.date, { month: 'short' })}</span></div><div><b>${esc(L(d.what))}</b><br><span class="small muted">${d.time}. ${n} ${T('de', 'of')} ${d.spots} ${T('lugares ocupados', 'places taken')}.</span>
+      ${ed ? `<form class="form mt-s" data-edit-day="${d.date}" novalidate>
+        <div class="row"><div class="field"><label for="ed-date">${T('Data', 'Date')}</label><input id="ed-date" type="date" min="${iso(today())}" value="${d.date}" required></div><div class="field"><label for="ed-time">${T('Horário', 'Time')}</label><select id="ed-time">${[...new Set([d.time, ...TIME_OPTS])].map(t => `<option${t === d.time ? ' selected' : ''}>${t}</option>`).join('')}</select></div></div>
+        <div class="row"><div class="field"><label for="ed-prod">${T('Produto a colher', 'Produce to pick')}</label><select id="ed-prod"><option value="">${esc(L(d.what))}</option>${mine.map(p => `<option value="${p.id}">${esc(L(p.name))}</option>`).join('')}</select></div><div class="field"><label for="ed-spots">${T('Máximo de participantes', 'Maximum participants')}</label><input id="ed-spots" type="number" min="${Math.max(1, n)}" value="${d.spots}" required></div></div>
+        ${n ? `<p class="small muted">${T(`Os ${n} inscritos recebem um aviso com a alteração.`, `The ${n} people signed up get a notice of the change.`)}</p>` : ''}
+        <p class="err" hidden></p><div class="row-btns"><button class="btn btn-green btn-sm" type="submit">${T('Guardar alterações', 'Save changes')}</button><button type="button" class="btn btn-line btn-sm" data-edit-day-cancel>${T('Cancelar', 'Cancel')}</button></div></form>` : ''}</div>
+      ${ed ? '' : `<button class="link" data-edit-day-open="${d.date}">${T('Editar', 'Edit')}</button>`}</li>`; };
+  const doneRow = d => { const sm = harvestSummary(d.date);
+    return `<li class="hrow"><div class="date sm"><b>${fdate(d.date, { day: 'numeric' })}</b><span>${fdate(d.date, { month: 'short' })}</span></div><div><b>${esc(L(d.what))}</b> ${harvestPast(d) ? '' : `<span class="status prog">${T('A decorrer', 'In progress')}</span>`}<br>
+      <span class="small muted">${sm.people} ${T('participantes', 'participants')}${sm.kg ? ` · ${numFmt(sm.kg)} kg ${T('colhidos', 'picked')}` : ''}</span><br>
+      ${sm.n ? `${stars(Math.round(sm.avg))} <span class="small">${numFmt(round2(sm.avg))} (${sm.n} ${sm.n === 1 ? T('avaliação', 'review') : T('avaliações', 'reviews')})</span>${sm.comments.filter(c => c.comment).map(c => `<p class="small mt-s">«${esc(c.comment)}» ${stars(c.rating)}</p>`).join('')}` : `<span class="small muted">${harvestRateOpen(d) ? T('As avaliações dos participantes aparecem aqui.', 'Participants\' reviews show here.') : T('Sem avaliações.', 'No reviews.')}</span>`}</div></li>`; };
   return `
   <section class="acc-sec"><div class="row-between mb-s"><h2>${T('Perfil da quinta', 'Farm profile')}</h2>${f ? `<a class="link" href="${farmerHref(f)}">${T('Ver a minha página pública', 'See my public page')}</a>` : ''}</div>
     <form class="form" data-farm-profile novalidate>
@@ -36,19 +71,33 @@ function farmerArea(u) {
       <p class="err" hidden></p><button class="btn btn-green btn-sm" type="submit">${T('Guardar perfil', 'Save profile')}</button></form></section>
   <section class="acc-sec"><h2>${T('Os meus produtos', 'My produce')}</h2>
     ${mine.length ? `<p class="muted mt-s mb-s">${T('Marque um produto como fora de stock quando não tiver colheita para a semana. O preço é acordado com a Daqui.', 'Mark a product as out of stock when you have no harvest for the week. Prices are agreed with Daqui.')}</p>
-      <ul class="prodlist">${mine.map(p => `<li><span class="thumb">${artFor(p)}</span><span><a href="${productHref(p)}"><b>${esc(L(p.name))}</b></a><br><span class="small muted">${money(p.price)}${unitLabel(p.unit)}, ${T('época', 'season')} ${seasonText(p)}</span></span>
-        ${inSeason(p) ? `<button class="btn btn-sm ${p.outOfStock ? 'btn-green' : 'btn-line c-tomato'}" data-my-stock="${p.id}">${p.outOfStock ? T('Repor stock', 'Back in stock') : T('Marcar fora de stock', 'Mark out of stock')}</button>` : `<span class="small muted">${T('Fora de época', 'Out of season')}</span>`}</li>`).join('')}</ul>`
+      <ul class="prodlist">${mine.map(p => { const my = myOffers(p, f.id), out = my.every(o => o.outOfStock), others = offersOf(p).filter(o => o.farmer !== f.id).map(o => F(o.farmer)).filter(Boolean);
+        return `<li><span class="thumb">${artFor(p)}</span><span><a href="${productHref(p)}"><b>${esc(L(p.name))}</b></a><br><span class="small muted">${my.map(o => `${bioName(o.organic)} ${money(variantPrice(p, o.organic))}${unitLabel(p.unit)}`).join(', ')}; ${T('época', 'season')} ${seasonText(p)}</span>${others.length ? `<br><span class="small muted">${T('Também produzido por', 'Also grown by')} ${others.map(x => esc(x.name)).filter((x, i, a) => a.indexOf(x) === i).join(', ')}</span>` : ''}</span>
+        ${inSeason(p) ? `<button class="btn btn-sm ${out ? 'btn-green' : 'btn-line c-tomato'}" data-my-stock="${p.id}">${out ? T('Repor stock', 'Back in stock') : T('Marcar fora de stock', 'Mark out of stock')}</button>` : `<span class="small muted">${T('Fora de época', 'Out of season')}</span>`}</li>`; }).join('')}</ul>`
       : `<p class="muted mt-s">${pt.approved ? T('Ainda não tem produtos publicados. Proponha o primeiro abaixo.', 'No products published yet. Propose your first one below.') : T('Os seus produtos aparecem aqui depois de a quinta ser aprovada.', 'Your products appear here once the farm is approved.')}</p>`}
-    <details class="panel mt"><summary class="lbl">${icon('plus', 18)} ${T('Propor um produto novo', 'Propose a new product')}</summary>
-      <form class="form mt-s" data-prop-prod novalidate>
+    <details class="panel mt"${showNewProd ? ' open' : ''}><summary class="lbl">${icon('plus', 18)} ${T('Adicionar um produto', 'Add a product')}</summary>
+      <form class="form mt-s" data-offer-prod novalidate>
+        <p class="small muted">${T('Escolha um produto que a Daqui já vende. O preço é o da Daqui para esse produto; o biológico custa mais 20%. A equipa Daqui confirma o pedido.', 'Pick a product Daqui already sells. The price is Daqui\'s price for it; organic costs 20% more. The Daqui team confirms the request.')}</p>
+        <div class="row"><div class="field"><label for="op-prod">${T('Produto', 'Product')}</label><select id="op-prod" required><option value="">${T('Escolher…', 'Choose…')}</option>${offerOpts}</select></div>
+          <div class="field"><span class="lbl">${T('Modo de produção', 'Farming method')}</span><label class="switch sm"><input type="checkbox" id="op-bio">${T('O meu é biológico (certificado)', 'Mine is organic (certified)')}</label></div></div>
+        <p class="err" hidden></p><button class="btn btn-green btn-sm" type="submit">${T('Pedir para vender este produto', 'Ask to sell this product')}</button></form>
+      <p class="small mt">${T('Não encontra o produto na lista?', 'Can\'t find the product in the list?')} <button type="button" class="link" data-new-prod-toggle aria-expanded="${showNewProd}">${T('Propor um produto novo', 'Propose a new product')}</button></p>
+      <form class="form mt-s" data-prop-prod novalidate${showNewProd ? '' : ' hidden'}>
+        <p class="small muted">${T('Só para produtos que ainda não existem na Daqui: aqui sim, sugere o preço.', 'Only for products Daqui does not sell yet: here you do suggest the price.')}</p>
         <div class="row"><div class="field"><label for="pp-pt">${T('Nome em português', 'Name in Portuguese')}</label><input id="pp-pt" required></div><div class="field"><label for="pp-en">${T('Nome em inglês', 'Name in English')}</label><input id="pp-en" required></div></div>
         <div class="row"><div class="field"><label for="pp-cat">${T('Categoria', 'Category')}</label><select id="pp-cat"><option value="fruta">${T('Fruta', 'Fruit')}</option><option value="legumes">${T('Legumes', 'Vegetables')}</option></select></div><div class="field"><label for="pp-price">${T('Preço sugerido (€)', 'Suggested price (€)')}</label><input id="pp-price" type="number" step="0.01" min="0" required></div></div>
+        <label class="switch sm"><input type="checkbox" id="pp-bio">${T('É biológico (indique o preço do biológico)', 'It is organic (enter the organic price)')}</label>
         <div class="row"><div class="field"><label for="pp-unit">${T('Unidade', 'Unit')}</label><select id="pp-unit">${UNIT_OPTS('kg')}</select></div><div class="field"><span class="lbl">${T('Época', 'Season')}</span><div class="row-gap"><select id="pp-s0" class="sel sm" aria-label="${T('De', 'From')}">${monthOpts(1)}</select>–<select id="pp-s1" class="sel sm" aria-label="${T('Até', 'To')}">${monthOpts(12)}</select></div></div></div>
         <div class="row"><div class="field"><label for="pp-dpt">${T('Descrição em português', 'Description in Portuguese')}</label><textarea id="pp-dpt" rows="2"></textarea></div><div class="field"><label for="pp-den">${T('Descrição em inglês', 'Description in English')}</label><textarea id="pp-den" rows="2"></textarea></div></div>
         <p class="err" hidden></p><button class="btn btn-green btn-sm" type="submit">${T('Enviar proposta', 'Send proposal')}</button></form></details>
-    ${myRequests(u, 'produto').length ? `<h3 class="mt">${T('As minhas propostas', 'My proposals')}</h3><ul class="hlist mt-s">${myRequests(u, 'produto').map(r => `<li class="hrow"><span>${icon('leaf', 20)}</span><div><b>${esc(r.fields.namePt)}</b> / ${esc(r.fields.nameEn || '')}<br><span class="small muted">${fdate(r.created)}, ${money(+r.fields.price || 0)}</span></div>${reqStatus(r)}</li>`).join('')}</ul>` : ''}</section>
+    ${myRequests(u, 'produto').length ? `<h3 class="mt">${T('Os meus pedidos de produtos', 'My product requests')}</h3><ul class="hlist mt-s">${myRequests(u, 'produto').map(r => `<li class="hrow"><span>${icon('leaf', 20)}</span><div><b>${esc(r.fields.productId && P(r.fields.productId) ? L(P(r.fields.productId).name) : lang === 'en' && r.fields.nameEn ? r.fields.nameEn : r.fields.namePt)}</b> <span class="small muted">(${bioName(r.fields.organic === 'sim').toLowerCase()})</span><br><span class="small muted">${fdate(r.created)}${r.fields.productId ? ', ' + T('produto da loja', 'shop product') : r.fields.price ? ', ' + T('produto novo', 'new product') + ' ' + money(+r.fields.price) : ''}</span>${reqReply(r)}</div>${reqStatus(r)}</li>`).join('')}</ul>` : ''}</section>
   <section class="acc-sec"><h2>${JTH()}</h2>
-    ${days.length ? `<ul class="hlist mt-s">${days.map(d => `<li class="hrow"><div class="date sm"><b>${fdate(d.date, { day: 'numeric' })}</b><span>${fdate(d.date, { month: 'short' })}</span></div><div><b>${esc(L(d.what))}</b><br><span class="small muted">${d.time}. ${harvestPeople(d.date)} ${T('de', 'of')} ${d.spots} ${T('lugares ocupados', 'places taken')}.</span></div></li>`).join('')}</ul>` : `<p class="muted mt-s">${T('Ainda não tem dias Colhe Connosco.', 'No Join the Harvest days yet.')}</p>`}
+    <h3 class="mt-s">${T('Próximos dias', 'Upcoming days')}</h3>
+    ${days.length ? `<p class="small muted">${T('Pode editar cada dia até começar.', 'You can edit each day until it starts.')}</p><ul class="hlist mt-s">${days.map(dayRow).join('')}</ul>` : `<p class="muted mt-s">${T('Não tem dias marcados.', 'No days scheduled.')}</p>`}
+    ${myRequests(u, 'colhe').filter(r => !r.decision && !r.approved).length ? `<p class="small muted mt-s">${T('Propostas em análise', 'Proposals under review')}: ${myRequests(u, 'colhe').filter(r => !r.decision && !r.approved).map(r => slotLabel(r.fields.date)).join('; ')}</p>` : ''}
+    ${myRequests(u, 'colhe').filter(r => r.decision === 'rejeitado').map(r => `<p class="small mt-s">${reqStatus(r)} ${slotLabel(r.fields.date)}${reqReply(r)}</p>`).join('')}
+    <h3 class="mt">${T('Colheitas passadas', 'Past harvests')}</h3>
+    ${done.length ? `<ul class="hlist mt-s">${done.map(doneRow).join('')}</ul>` : `<p class="muted mt-s">${T('Ainda não houve dias na sua quinta.', 'No days on your farm yet.')}</p>`}
     <details class="panel mt"><summary class="lbl">${icon('calendar', 18)} ${T('Propor um dia Colhe Connosco', 'Propose a Join the Harvest day')}</summary>
       <form class="form mt-s" data-prop-day novalidate>
         <div class="row"><div class="field"><label for="pd-date">${T('Data', 'Date')}</label><input id="pd-date" type="date" min="${iso(today())}" required></div><div class="field"><label for="pd-time">${T('Horário', 'Time')}</label><select id="pd-time">${TIME_OPTS.map(t => `<option>${t}</option>`).join('')}</select></div></div>
@@ -93,7 +142,11 @@ function saveRest(u, patch) {
 }
 PAGE_EVENTS.click.push((e, t, d) => {
   if (PAGE !== 'parceiro') return; const u = currentUser(); if (!u || !u.partner) return;
-  if (d.myStock) { const p = P(d.myStock), v = !p.outOfStock; saveCatalog(ch => { ch.products = ch.products || {}; ch.products[p.id] = Object.assign(ch.products[p.id] || {}, { outOfStock: v }); }); toast(v ? T(`${L(p.name)}: fora de stock`, `${L(p.name)}: out of stock`) : T(`${L(p.name)}: com stock`, `${L(p.name)}: in stock`)); rerenderKeep(`[data-my-stock="${p.id}"]`); return true; }
+  if (d.myStock) { const p = P(d.myStock), fid = u.partner.farmerId, v = !myOffers(p, fid).every(o => o.outOfStock); setMyStock(p, fid, v); toast(v ? T(`${L(p.name)}: fora de stock`, `${L(p.name)}: out of stock`) : T(`${L(p.name)}: com stock`, `${L(p.name)}: in stock`)); rerenderKeep(`[data-my-stock="${p.id}"]`); return true; }
+  if ('newProdToggle' in d) { showNewProd = !showNewProd; rerenderKeep('[data-new-prod-toggle]'); return true; }
+  if (d.editDayOpen) { editDay = d.editDayOpen; rerenderKeep('#ed-date'); return true; }
+  if ('editDayCancel' in d) { editDay = ''; rerenderKeep(); return true; }
+  if ('partnerRetry' in d) { u.partner.rejected = false; delete u.partner.reply; saveUsers(); partnerRequest(u); toast(T('Pedido enviado outra vez à equipa Daqui', 'Application sent to the Daqui team again')); rerenderKeep(); return true; }
   if (d.dishRm !== undefined) { const r = RESTAURANTS.find(x => x.id === u.partner.restId); const list = ((r ? r.dishes : (u.partner.draft || {}).dishes) || []).filter((_, i) => i !== +d.dishRm); saveRest(u, { dishes: list }); rerenderKeep(); return true; }
 });
 PAGE_EVENTS.submit.push((e, f) => {
@@ -104,9 +157,26 @@ PAGE_EVENTS.submit.push((e, f) => {
     u.partner.farm = patch.farm; u.partner.place = patch.place; u.partner.story = patch.story; saveUsers();
     if (u.partner.farmerId) saveCatalog(ch => { ch.farmers = ch.farmers || {}; ch.farmers[u.partner.farmerId] = Object.assign(ch.farmers[u.partner.farmerId] || {}, patch); });
     return done(T('Perfil guardado', 'Profile saved')); }
+  const fail = (msg) => { const err = $('.err', f); err.hidden = false; err.textContent = msg; return true; };
+  if (f.matches('[data-offer-prod]')) { e.preventDefault(); if (!validate(f)) return true;
+    const p = P($('#op-prod').value), bio = $('#op-bio').checked, fid = u.partner.farmerId;
+    if (fid && myOffers(p, fid).some(o => !!o.organic === bio)) return fail(T(`Já vende ${L(p.name)} (${bioName(bio).toLowerCase()}).`, `You already sell ${L(p.name)} (${bioName(bio).toLowerCase()}).`));
+    if (myRequests(u, 'produto').some(r => !r.decision && !r.approved && r.fields.productId === p.id && (r.fields.organic === 'sim') === bio)) return fail(T('Já pediu este produto: está em análise.', 'You already asked for this product: it is under review.'));
+    addRequest('produto', { productId: p.id, namePt: p.name.pt, nameEn: p.name.en, organic: bio ? 'sim' : 'nao' }, { partnerUser: u.username });
+    return done(T('Pedido enviado à equipa Daqui', 'Request sent to the Daqui team')); }
   if (f.matches('[data-prop-prod]')) { e.preventDefault(); if (!validate(f)) return true;
-    addRequest('produto', { namePt: $('#pp-pt').value.trim(), nameEn: $('#pp-en').value.trim(), cat: $('#pp-cat').value, price: $('#pp-price').value, unit: $('#pp-unit').value, season: `${$('#pp-s0').value}-${$('#pp-s1').value}`, desc: $('#pp-dpt').value.trim(), descEn: $('#pp-den').value.trim() }, { partnerUser: u.username });
-    return done(T('Proposta enviada à equipa Daqui', 'Proposal sent to the Daqui team')); }
+    const namePt = $('#pp-pt').value.trim(), b = baseName(namePt), same = PRODUCTS.filter(p => { if (p.cat === 'caixas') return false; const x = baseName(p.name.pt); return x === b || (b.split(' ').length > 1 && (x.startsWith(b + ' ') || b.startsWith(x + ' '))); });
+    if (same.length) return fail(T(`Já existe na Daqui: ${same.map(p => L(p.name)).join(', ')}. Escolha-o na lista acima (e marque se o seu é biológico).`, `Already on Daqui: ${same.map(p => L(p.name)).join(', ')}. Pick it in the list above (and tick if yours is organic).`));
+    addRequest('produto', { namePt, nameEn: $('#pp-en').value.trim(), cat: $('#pp-cat').value, price: $('#pp-price').value, unit: $('#pp-unit').value, season: `${$('#pp-s0').value}-${$('#pp-s1').value}`, desc: $('#pp-dpt').value.trim(), descEn: $('#pp-den').value.trim(), organic: $('#pp-bio').checked ? 'sim' : 'nao' }, { partnerUser: u.username });
+    showNewProd = false; return done(T('Proposta enviada à equipa Daqui', 'Proposal sent to the Daqui team')); }
+  if (f.matches('[data-edit-day]')) { e.preventDefault(); if (!validate(f)) return true;
+    const old = f.dataset.editDay, d0 = HARVEST_DAYS.find(x => x.date === old); if (!d0) return true;
+    if (harvestStarted(d0)) return fail(T('Este dia já começou: já não pode ser alterado.', 'This day has already started: it can no longer be changed.'));
+    const date = $('#ed-date').value, n = harvestPeople(old), spots = Math.max(+$('#ed-spots').value || 1, n, 1), pr = P($('#ed-prod').value);
+    if (date < iso(today())) return fail(T('Escolha uma data a partir de hoje.', 'Pick a date from today.'));
+    const patch = { date, time: $('#ed-time').value, spots }; if (pr) Object.assign(patch, { what: { pt: pr.name.pt, en: pr.name.en }, crop: pr.art || d0.crop });
+    const r = editHarvestDay(old, patch); if (r !== true) return fail(r || T('Não foi possível guardar.', 'Could not save.'));
+    editDay = ''; return done(T('Dia Colhe Connosco atualizado', 'Join the Harvest day updated')); }
   if (f.matches('[data-prop-day]')) { e.preventDefault(); if (!validate(f)) return true;
     addRequest('colhe', { date: $('#pd-date').value, product: $('#pd-prod').value, time: $('#pd-time').value, spots: $('#pd-spots').value }, { partnerUser: u.username });
     return done(T('Proposta enviada à equipa Daqui', 'Proposal sent to the Daqui team')); }

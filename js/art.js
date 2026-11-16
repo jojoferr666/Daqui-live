@@ -447,6 +447,9 @@ function sealSVG(cls = '', lang = 'pt') {
 /* ===== UI line icons (24x24, stroke=currentColor) ===== */
 const IC = {
   search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+  chat: '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/>',
+  send: '<path d="M4 12l16-8-6 16-3-7z"/><path d="M11 13l9-9"/>',
+  star: '<path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.8 6.8 19.6l1-5.8-4.3-4.1 5.9-.8z"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   home: '<path d="M4 11l8-7 8 7"/><path d="M6 9.5V20h4.5v-5.5h3V20H18V9.5"/>',
   map: '<path d="M9 4L3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/>',

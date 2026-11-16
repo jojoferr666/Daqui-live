@@ -36,6 +36,7 @@ O site inclui também a **app para telemóvel** (pasta `app/`): a mesma loja, co
 21. [Testar e resolver problemas](#21-testar-e-resolver-problemas)
 22. [Limites desta demonstração](#22-limites-desta-demonstração)
 23. [App para telemóvel](#23-app-para-telemóvel)
+24. [Versão 7: o que mudou](#24-versão-7-o-que-mudou)
 
 ---
 
@@ -76,6 +77,7 @@ No menu da esquerda, **SQL Editor** → *New query*. Para cada ficheiro da pasta
 | `supabase/02-catalogo.sql` | Põe na base de dados os 94 produtos, 15 agricultores, 8 restaurantes, preços das caixas e dias Colhe Connosco de `js/data.js`. |
 | `supabase/03-contas.sql` | Cria as 27 contas de demonstração (clientes, gestão, uma por quinta e uma por restaurante), com subscrições, inscrições, encomendas e pedidos de exemplo. |
 | `supabase/04-app.sql` | Para a app: telemóveis que recebem notificações, fotografias das incidências (Storage, pasta `incidencias`) e "deslizar para confirmar" o levantamento. Corra também se só usar o site: as fotografias das incidências do site usam-no. |
+| `supabase/06-melhorias.sql` | Versão 7: vários produtores por produto e escolha convencional/biológico, aprovar ou rejeitar pedidos com mensagem, edição e avaliações do Colhe Connosco, registo da colheita e "Falar com a Daqui". Corra-o **antes** de enviar a versão 7 do site. Pode ser corrido mais do que uma vez. |
 | `supabase/05-notificacoes.sql` | Só para as notificações da app Android, **depois** de criar a função `notificar` (ver `LEIA-ME-APP.md` do projeto `daqui-android`). Antes de correr, troque as 2 linhas marcadas com `<<<`. |
 
 Para confirmar: **Table Editor** → tabela `perfis` deve ter 27 linhas e `produtos` 94.
@@ -230,7 +232,7 @@ js/                         ver tabela abaixo
 ferramentas/                scripts para gerar páginas, ícones, análises e o SQL da base de dados
 app/index.html              a app para telemóvel (secção 23); app/manifest.webmanifest, app/sw.js, app/icones/
 css/app.css                 estilos só da app (tudo começa por body.app)
-supabase/                   01-estrutura.sql … 05-notificacoes.sql (secção 2)
+supabase/                   01-estrutura.sql … 06-melhorias.sql (secção 2)
 supabase/funcoes/notificar/index.ts   função do Supabase que envia as notificações (Firebase)
 LEIA-ME.md                  este ficheiro
 ```
@@ -569,4 +571,18 @@ A app está em `app/index.html` e usa **os mesmos ficheiros** `js/` e `css/style
 - **No navegador**: abra `<endereço do site>/app/` no telemóvel; no Chrome, menu ⋮ → *Adicionar ao ecrã principal* instala-a como app (sem câmara nativa nem notificações; a fotografia usa o seletor de ficheiros).
 - **Como app Android**: projeto `daqui-android` (Capacitor). Os passos estão no `LEIA-ME-APP.md` desse projeto.
 - **Gerar a página**: `app/index.html` é escrita por `python3 ferramentas/gerar-paginas.py`, como as outras páginas (lista `APP_SCRIPTS`).
+
+## 24. Versão 7: o que mudou
+
+Base de dados: corra `supabase/06-melhorias.sql` (uma vez; pode repetir). Sem ele, a versão 7 não grava produtos, mensagens nem avaliações.
+
+- **Pedidos de parceiros** (adesão de agricultor, Selo Daqui, produtos, dias Colhe Connosco): no painel da gestão há **Aprovar e publicar**, **Rejeitar** e **Marcar como tratado**, com uma mensagem opcional. O parceiro vê a decisão e a mensagem na sua área e recebe uma notificação no telemóvel. Um parceiro rejeitado pode pedir nova análise.
+- **Produtos com vários produtores**: o agricultor escolhe um produto que já existe (indicando se o dele é biológico) e só propõe preço para produtos novos. Cada produto mostra quem o produz; o cliente não escolhe o agricultor. O stock é de cada produtor: o produto só esgota quando todos estão sem stock.
+- **Convencional ou biológico**: quando há os dois, o cliente escolhe na página do produto; o biológico custa mais 20% (`BIO_EXTRA` em `js/app.js`). O preço guardado é o do convencional (num produto só biológico é o do biológico).
+- **Produtos repetidos**: o catálogo da gestão mostra os produtos com o mesmo nome (sem contar "biológico") e junta-os com um botão. O endereço antigo continua a abrir, e favoritos, exclusões e avisos passam para o produto que fica. O ficheiro 06 junta automaticamente os que tiverem exatamente o mesmo nome.
+- **Quantidades ao meio quilo**: os produtos ao quilo encomendam-se de 0,5 em 0,5 kg (`KG_STEP`).
+- **Colhe Connosco**: o agricultor edita os seus dias (data, horário, lugares, produto) até começarem, e os inscritos são avisados. Os dias que já começaram aparecem em "Colheitas passadas" (agricultor) e "A decorrer e colheitas passadas" (gestão). Os participantes avaliam de 1 a 5 estrelas e comentam desde o início do dia até 48 horas depois do fim. A gestão regista o que cada participante colheu, e o cliente vê o registo na sua conta.
+- **Falar com a Daqui**: botão redondo no canto inferior direito do site e opção na Conta da app. Visitantes sem conta também podem escrever (indicam nome e contacto). A gestão responde no separador **Mensagens**.
+- **App**: as contas de agricultor, restaurante e gestão têm agora as ligações para Termos de utilização, Privacidade, Cookies e Devoluções.
+- **Correção**: em "Gerir encomenda" e "Seguir entrega", a janela já não volta a abrir sozinha depois de fechada.
 

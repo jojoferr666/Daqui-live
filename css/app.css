@@ -292,3 +292,16 @@ body.app .row-btns{display:flex;flex-wrap:wrap;gap:8px}
 
 body.app .a-photo-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
 body.app .a-photo-btns .a-big-btn{padding-inline:10px}
+
+/* v7: conversa com a Daqui, informação legal, modo de produção */
+body.app .a-menu-h{margin:20px 4px 8px;font-size:1rem;color:var(--muted)}
+body.app .a-bio{margin-top:10px}
+body.app .a-sizes button[disabled]{opacity:.5}
+body.app .a-chat{display:flex;flex-direction:column;min-height:calc(100vh - 210px - var(--safe-area-inset-bottom, env(safe-area-inset-bottom)))}
+body.app .a-chat .msgs{flex:1;max-height:none}
+body.app .a-chat .chat-f{position:sticky;bottom:calc(70px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom)));background:var(--paper);padding:10px 0 4px;margin-top:auto}
+body.app .a-chat .chat-guest{margin-top:8px}
+body.app .chat-fab{display:none}
+body.app .inbox-chat{grid-template-columns:1fr}
+body.app .conv-thread{padding:12px}
+body.app .star-pick label{font-size:2.2rem}

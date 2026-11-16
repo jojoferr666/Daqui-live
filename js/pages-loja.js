@@ -148,8 +148,8 @@ PAGES.produtos = () => {
       <aside class="filters" id="filters" aria-label="${T('Filtros', 'Filters')}">
         <div class="fgroup"><h3>${T('Categoria', 'Category')}</h3>${chk('cats', 'caixas', T('Caixas da Estação', 'Seasonal boxes'), cnt(p => p.cat === 'caixas'))}${chk('cats', 'fruta', T('Fruta', 'Fruit'), cnt(p => p.cat === 'fruta'))}${chk('cats', 'legumes', T('Legumes', 'Vegetables'), cnt(p => p.cat === 'legumes'))}</div>
         <div class="fgroup"><h3>${T('Disponibilidade', 'Availability')}</h3>${chk('avail', 'now', T('Disponível agora', 'Available now'), cnt(available))}${chk('avail', 'nostock', T('Fora de stock', 'Out of stock'), cnt(p => inSeason(p) && p.outOfStock))}${chk('avail', 'off', T('Fora de época', 'Out of season'), cnt(p => !inSeason(p)))}</div>
-        <div class="fgroup"><h3>${T('Modo de produção', 'Farming method')}</h3>${chk('modes', 'conv', T('Convencional', 'Conventional'), cnt(p => !p.organic))}${chk('modes', 'bio', T('Biológico', 'Organic'), cnt(p => p.organic))}</div>
-        <div class="fgroup"><h3>${T('Região', 'Region')}</h3>${Object.keys(REGIONS).map(r => chk('regions', r, regionName(r), cnt(p => p.farmer && F(p.farmer).region === r))).join('')}</div>
+        <div class="fgroup"><h3>${T('Modo de produção', 'Farming method')}</h3>${chk('modes', 'conv', T('Convencional', 'Conventional'), cnt(hasConv))}${chk('modes', 'bio', T('Biológico', 'Organic'), cnt(hasBio))}</div>
+        <div class="fgroup"><h3>${T('Região', 'Region')}</h3>${Object.keys(REGIONS).map(r => chk('regions', r, regionName(r), cnt(p => offersOf(p).some(o => F(o.farmer) && F(o.farmer).region === r)))).join('')}</div>
         <div class="fgroup"><h3><label for="maxp" class="inline">${T('Preço máximo', 'Max price')}</label>: <span id="maxv">${money(shop.max)}</span></h3><input id="maxp" type="range" min="0.5" max="10" step="0.5" value="${shop.max}" data-filter-range>
           <p class="small muted">${T('As caixas aparecem sempre.', 'Boxes always show.')}</p></div>
         <button class="link mt-s" data-reset>${T('Limpar filtros', 'Clear filters')}</button>
@@ -171,14 +171,14 @@ function filtered() {
     if (shop.cats.size && !shop.cats.has(p.cat)) return false;
     if (shop.essential && !p.essential) return false;
     if (shop.avail.size && !shop.avail.has(!inSeason(p) ? 'off' : p.outOfStock ? 'nostock' : 'now')) return false;
-    if (shop.modes.size && !shop.modes.has(p.organic ? 'bio' : 'conv')) return false;
-    if (shop.regions.size && !(p.farmer && shop.regions.has(F(p.farmer).region))) return false;
-    if (p.cat !== 'caixas' && p.price > shop.max) return false;
-    if (q) { const f = p.farmer ? F(p.farmer) : null; const hay = norm(`${p.name.pt} ${p.name.en} ${p.cat} ${f ? f.name + ' ' + f.place + ' ' + L(REGIONS[f.region]) : ''}`); if (!q.split(/\s+/).every(w => hay.includes(w))) return false; }
+    if (shop.modes.size && !((shop.modes.has('bio') && hasBio(p)) || (shop.modes.has('conv') && hasConv(p)))) return false;
+    if (shop.regions.size && !offersOf(p).some(o => F(o.farmer) && shop.regions.has(F(o.farmer).region))) return false;
+    if (p.cat !== 'caixas' && shownPrice(p) > shop.max) return false;
+    if (q) { const fs = offersOf(p).map(o => F(o.farmer)).filter(Boolean); const hay = norm(`${p.name.pt} ${p.name.en} ${p.cat} ${hasBio(p) ? 'bio biologico organic' : ''} ${fs.map(f => f.name + ' ' + f.place + ' ' + L(REGIONS[f.region])).join(' ')}`); if (!q.split(/\s+/).every(w => hay.includes(w))) return false; }
     return true;
   });
   const nm = p => L(p.name), hv = p => harvestOf(p)?.getTime() || 0;
-  const s = { rel: (a, b) => relRank(a) - relRank(b), az: (a, b) => nm(a).localeCompare(nm(b)), za: (a, b) => nm(b).localeCompare(nm(a)), pa: (a, b) => a.price - b.price, pd: (a, b) => b.price - a.price, new: (a, b) => hv(b) - hv(a) }[shop.sort];
+  const s = { rel: (a, b) => relRank(a) - relRank(b), az: (a, b) => nm(a).localeCompare(nm(b)), za: (a, b) => nm(b).localeCompare(nm(a)), pa: (a, b) => shownPrice(a) - shownPrice(b), pd: (a, b) => shownPrice(b) - shownPrice(a), new: (a, b) => hv(b) - hv(a) }[shop.sort];
   return [...list].sort(s);
 }
 function renderResults() {
@@ -205,12 +205,19 @@ PAGE_EVENTS.change.push((e, t) => {
 PAGE_EVENTS.input.push((e, t) => { if (PAGE === 'produtos' && t.matches('[data-filter-range]')) { shop.max = +t.value; $('#maxv').textContent = money(shop.max); shop.shown = 24; renderResults(); } });
 
 /* ---------------- PRODUTO (/produtos/<id>) ---------------- */
-const pd = { size: (P(PID) && BOX_SIZES[PID]) ? (BOX_SIZES[PID].find(s => s.s === QS.get('tamanho')) || BOX_SIZES[PID][0]).s : 'P', qty: 1 };
+const pd = { size: (P(PID) && BOX_SIZES[PID]) ? (BOX_SIZES[PID].find(s => s.s === QS.get('tamanho')) || BOX_SIZES[PID][0]).s : 'P', qty: 1, bio: null };
+/* escolha entre convencional e biológico (quando o produto tem os dois) */
+function bioChoice(p, bio, attr) {
+  if (!(hasBio(p) && hasConv(p))) return '';
+  return `<div class="field"><span class="lbl">${T('Modo de produção', 'Farming method')}</span><div class="seg">${[false, true].map(b => `<button type="button" ${attr}="${b ? 1 : 0}" aria-pressed="${bio === b}"${offerOn(p, b) ? '' : ' disabled'}>${bioName(b)}<small>${money(variantPrice(p, b))}${unitLabel(p.unit)}${b ? ` (+${Math.round(BIO_EXTRA * 100)}%)` : ''}${offerOn(p, b) ? '' : ' · ' + T('esgotado', 'sold out')}</small></button>`).join('')}</div></div>`;
+}
 PAGES.produto = () => {
   const p = P(PID);
   if (!p) return { title: T('Produto não encontrado', 'Product not found'), html: `${crumbs([[T('Produtos', 'Shop'), 'produtos'], ['?', '']])}<div class="wrap page-head"><h1>${T('Produto não encontrado', 'Product not found')}</h1><p class="lead">${T('Este produto já não existe no catálogo.', 'This product is no longer in the catalogue.')}</p><a class="btn btn-green mt" href="${href('produtos')}">${T('Ver produtos', 'Browse the shop')}</a></div>` };
   const isBox = p.cat === 'caixas', on = inSeason(p), f = p.farmer ? F(p.farmer) : null, [a, b, c] = splitOf(p);
-  const sz = isBox ? BOX_SIZES[p.id].find(s => s.s === pd.size) : null, price = isBox ? sz.price : p.price;
+  if (pd.bio === null || (!isBox && !offerOn(p, pd.bio) && offerOn(p, !pd.bio))) pd.bio = isBox ? false : defaultBio(p);
+  if (!isBox && pd.qty < qtyStep(p)) pd.qty = qtyStep(p);
+  const sz = isBox ? BOX_SIZES[p.id].find(s => s.s === pd.size) : null, price = isBox ? sz.price : variantPrice(p, pd.bio);
   const buy = isBox ? `
       <div class="field"><span class="lbl">${T('Tamanho', 'Size')}</span><div class="seg">${BOX_SIZES[p.id].map(s => `<button data-pd-size="${s.s}" aria-pressed="${s.s === sz.s}">${sizeName(s.s)}<small>${s.kg} kg, ${money(s.price)}</small></button>`).join('')}</div></div>
       <div class="price"><strong class="big">${money(price)}</strong><span>${sz.kg} kg, ${money(price / sz.kg)}/kg</span></div>
@@ -221,12 +228,14 @@ PAGES.produto = () => {
     : on && p.outOfStock ? `<div class="price"><strong class="big">${money(price)}</strong><span>${unitLabel(p.unit)}</span></div>
       <div class="note">${icon('alert', 22)}<span>${T('Esgotado esta semana. Volta assim que o agricultor tiver nova colheita.', 'Sold out this week. Back as soon as the farmer has a new harvest.')}</span></div>
       <button class="btn btn-green" data-notify="${p.id}" aria-pressed="${notifyOn(p.id)}">${icon('bell', 18)}${notifyOn(p.id) ? T('Aviso ativo', 'Reminder on') : T('Avisar-me quando houver stock', 'Notify me when back in stock')}</button>`
-    : on ? `<div class="price"><strong class="big">${money(price)}</strong><span>${unitLabel(p.unit)}</span></div>
-      <div class="row-gap"><div class="qty m0"><button data-pd-qty="-1" aria-label="${T('Menos um', 'One less')}">${icon('minus', 16)}</button><span>${pd.qty}</span><button data-pd-qty="1" aria-label="${T('Mais um', 'One more')}">${icon('plus', 16)}</button></div>
+    : on ? `${bioChoice(p, pd.bio, 'data-pd-bio')}<div class="price"><strong class="big">${money(price)}</strong><span>${unitLabel(p.unit)}${hasBio(p) ? `, ${bioName(pd.bio).toLowerCase()}` : ''}</span></div>
+      ${byKg(p) ? `<p class="small muted">${T('Pode encomendar ao meio quilo (por exemplo 2,5 kg).', 'You can order by the half kilo (for example 2.5 kg).')}</p>` : ''}
+      <div class="row-gap"><div class="qty m0"><button data-pd-qty="-1" aria-label="${byKg(p) ? T('Menos meio quilo', 'Half a kilo less') : T('Menos um', 'One less')}">${icon('minus', 16)}</button><span>${fmtQty(pd.qty, p)}</span><button data-pd-qty="1" aria-label="${byKg(p) ? T('Mais meio quilo', 'Half a kilo more') : T('Mais um', 'One more')}">${icon('plus', 16)}</button></div>
         <button class="btn btn-green grow" data-pd-add="${p.id}">${icon('basket', 18)}${T('Adicionar ao cabaz', 'Add to basket')}</button></div>`
       : `<div class="note">${icon('calendar', 22)}<span>${T(`Fora de época. ${L(p.name)} volta em ${monthName(p.season[0])}.`, `Out of season. ${L(p.name)} is back in ${monthName(p.season[0])}.`)}</span></div>
       <button class="btn btn-green" data-notify="${p.id}" aria-pressed="${notifyOn(p.id)}">${icon('bell', 18)}${notifyOn(p.id) ? T('Aviso ativo', 'Reminder on') : T('Avisar-me quando voltar', 'Notify me when it\'s back')}</button>`;
-  const more = f ? PRODUCTS.filter(x => x.farmer === f.id && x.id !== p.id) : [];
+  const more = f ? ofFarmer(f.id).filter(x => x.id !== p.id) : [];
+  const nOffers = farmersOf(p).length;
   const same = PRODUCTS.filter(x => x.cat === (isBox ? 'fruta' : p.cat) && x.id !== p.id && inSeason(x)).slice(0, 10);
   const html = `${crumbs([[T('Produtos', 'Shop'), 'produtos'], [catName(p.cat), 'produtos', 'cat=' + p.cat], [L(p.name), '']])}
   <section class="wrap pdp">
@@ -240,6 +249,7 @@ PAGES.produto = () => {
       ${on ? `<div><p class="lbl">${T('Para onde vai o seu dinheiro', 'Where your money goes')}</p>${splitBar(p, false)}
         <div class="legend mt-s"><span><i class="lg-farm"></i>${T('Agricultor', 'Farmer')} ${a}%</span><span><i class="lg-store"></i>${T('Conservação e embalamento', 'Storage and packing')} ${b}%</span><span><i class="lg-daqui"></i>Daqui ${c}%</span></div>
         <p class="small muted mt-s">${T('Divisão ilustrativa.', 'Illustrative split.')}</p></div>` : ''}
+      ${nOffers > 1 ? `<p class="small mt-s"><b>${T('Produzido por', 'Grown by')}:</b> ${producersLine(p)}</p>` : ''}
       ${f ? `<a class="farmer-mini" href="${farmerHref(f)}"><span class="fm-pic">${farmSVG(f.seed, f.crop)}</span><span><b>${esc(f.name)}</b><br><span class="small muted">${esc(f.farm)}, ${esc(f.place)}</span><br><span class="link small">${T('Conhecer o agricultor', 'Meet the farmer')}</span></span></a>` : ''}
       ${productTabs(p)}
     </div>
@@ -250,8 +260,8 @@ PAGES.produto = () => {
 };
 PAGE_EVENTS.click.push((e, t, d) => {
   if (PAGE !== 'produto') return;
-  if (d.pdSize || d.pdQty) { if (d.pdSize) pd.size = d.pdSize; if (d.pdQty) pd.qty = Math.max(1, pd.qty + +d.pdQty); const y = scrollY; render(); scrollTo(0, y); $(d.pdSize ? `[data-pd-size="${d.pdSize}"]` : `[data-pd-qty="${d.pdQty}"]`)?.focus(); return true; }
-  if (d.pdAdd) { const p = P(d.pdAdd); const qty = p.cat === 'caixas' ? 1 : pd.qty; addToCart(d.pdAdd, p.cat === 'caixas' ? { size: pd.size } : {}, qty); addedModal(p, qty); return true; }
+  if (d.pdSize || d.pdQty || d.pdBio) { const st = qtyStep(P(PID)); if (d.pdSize) pd.size = d.pdSize; if (d.pdQty) pd.qty = Math.max(st, round2(pd.qty + +d.pdQty * st)); if (d.pdBio) pd.bio = d.pdBio === '1'; const y = scrollY; render(); scrollTo(0, y); $(d.pdSize ? `[data-pd-size="${d.pdSize}"]` : d.pdBio ? `[data-pd-bio="${d.pdBio}"]` : `[data-pd-qty="${d.pdQty}"]`)?.focus(); return true; }
+  if (d.pdAdd) { const p = P(d.pdAdd); const qty = p.cat === 'caixas' ? 1 : pd.qty; addToCart(d.pdAdd, p.cat === 'caixas' ? { size: pd.size } : { bio: pd.bio }, qty); addedModal(p, qty, pd.bio); return true; }
 });
 
 /* ---------------- SUBSCRIÇÃO ---------------- */
@@ -429,9 +439,9 @@ function productTabs(p) {
         <div><dt>${T('Esta semana pode incluir', 'This week may include')}</dt><dd>${boxProducts(p).slice(0, 6).map(x => esc(L(x.name))).join(', ')}</dd></div></dl>
        <p class="mt-s">${tips.keep[lang]}</p><p class="mt-s">${tips.use[lang]}</p>`
     : `<dl class="dl">
-        <div><dt>${T('Origem', 'Origin')}</dt><dd>${esc(f.farm)}, ${esc(f.place)} (${regionName(f.region)})</dd></div>
+        <div><dt>${T('Origem', 'Origin')}</dt><dd>${offersOf(p).map(o => F(o.farmer)).filter((x, i, a) => x && a.indexOf(x) === i).map(x => `${esc(x.farm)}, ${esc(x.place)} (${regionName(x.region)})`).join('; ')}</dd></div>
         <div><dt>${T('Época', 'Season')}</dt><dd>${seasonText(p)}</dd></div>
-        <div><dt>${T('Modo de produção', 'Farming method')}</dt><dd>${p.organic ? T('Biológico', 'Organic') : T('Convencional, com proteção integrada', 'Conventional, integrated pest management')}</dd></div>
+        <div><dt>${T('Modo de produção', 'Farming method')}</dt><dd>${hasBio(p) && hasConv(p) ? T(`Convencional (proteção integrada) ou biológico, à escolha (+${Math.round(BIO_EXTRA * 100)}%)`, `Conventional (integrated pest management) or organic, your choice (+${Math.round(BIO_EXTRA * 100)}%)`) : hasBio(p) ? T('Biológico', 'Organic') : T('Convencional, com proteção integrada', 'Conventional, integrated pest management')}</dd></div>
         <div><dt>${T('Venda', 'Sold')}</dt><dd>${unitTxt}</dd></div></dl>
        <h4>${T('Como conservar', 'How to store it')}</h4><p>${tips.keep[lang]}</p>
        <h4>${T('Como escolher', 'How to choose')}</h4><p>${tips.pick[lang]}</p>
@@ -459,7 +469,7 @@ const co = (() => { const u = currentUser(), sl = slotOptions();
 function coSummary() {
   const t = cartTotals();
   return `<h3>${T('Resumo', 'Summary')}</h3>
-    <ul class="co-items">${cart.map(i => { const p = P(i.id); return `<li><span class="thumb">${artFor(p)}</span><span>${esc(L(p.name))}${i.opts.size ? ` (${sizeName(i.opts.size)})` : ''}<br><span class="small muted">${i.qty} × ${money(i.price)}</span></span><b>${money(i.price * i.qty)}</b></li>`; }).join('')}</ul>
+    <ul class="co-items">${cart.map(i => { const p = P(i.id); return `<li><span class="thumb">${artFor(p)}</span><span>${esc(L(p.name))}${i.opts.size ? ` (${sizeName(i.opts.size)})` : ''}${i.opts.bio ? ` (${T('biológico', 'organic')})` : ''}<br><span class="small muted">${fmtQty(i.qty, p)} × ${money(i.price)}${byKg(p) ? '/kg' : ''}</span></span><b>${money(round2(i.price * i.qty))}</b></li>`; }).join('')}</ul>
     <dl class="dl"><div><dt>${T('Subtotal', 'Subtotal')}</dt><dd>${money(t.sub)}</dd></div><div><dt>${co.deliver === 'home' ? T('Entrega em casa', 'Home delivery') : T('Levantamento', 'Pick-up')}</dt><dd>${t.del ? money(t.del) : T('Grátis', 'Free')}</dd></div>
       <div><dt>${T('Dia', 'Day')}</dt><dd>${slotLabel(co.slot)}</dd></div><div class="tot"><dt>Total</dt><dd>${money(t.tot)}</dd></div></dl>`;
 }
@@ -541,7 +551,7 @@ PAGE_EVENTS.click.push((e, t, d) => {
     const addr = co.deliver !== 'home' ? '' : (u && u.address && co.useSaved) ? `${u.address.street}, ${u.address.postal} ${u.address.town}` : `${co.street.trim()}, ${co.postal.trim()} ${co.town.trim()}`;
     if (u && co.deliver === 'home' && !(u.address && co.useSaved) && co.saveAddr) { u.address = { street: co.street.trim(), postal: co.postal.trim(), town: co.town.trim() }; saveUsers(); }
     const o = { num: newOrderNumber(), user: u ? u.username : null, name: u ? u.name : co.name.trim(), phone: u ? u.phone : normPhone(co.phone), email: co.email.trim(), created: nowISO(), slot: sl.date, day: sl.day, deliver: co.deliver,
-      window: co.deliver === 'home' ? co.window : '', point: co.deliver === 'pickup' ? co.point : '', address: addr, items: cart.map(i => ({ id: i.id, qty: i.qty, price: i.price, size: i.opts.size || '' })),
+      window: co.deliver === 'home' ? co.window : '', point: co.deliver === 'pickup' ? co.point : '', address: addr, items: cart.map(i => Object.assign({ id: i.id, qty: i.qty, price: i.price, size: i.opts.size || '' }, i.opts.bio ? { bio: true } : {})),
       subtotal: +tt.sub.toFixed(2), fee: tt.del, total: +tt.tot.toFixed(2), pay: co.pay, notes: co.notes.trim(), status: 'ativa' };
     if (u && o.items.some(i => P(i.id) && P(i.id).cat === 'caixas')) o.prefs = { exclude: (u.exclude || []).slice(), favs: (u.favs || []).slice() };   // a gestão vê as preferências do cliente
     ORDERS.push(o); saveOrders(); cart = []; saveCart(); store.set('daqui-last-order', o.num);
@@ -550,12 +560,12 @@ PAGE_EVENTS.click.push((e, t, d) => {
 });
 
 /* depois de adicionar ao cabaz na página de produto: seguir para o checkout ou continuar a comprar */
-function addedModal(p, qty) {
-  const t = cartTotals(), n = cart.reduce((a, i) => a + i.qty, 0);
+function addedModal(p, qty, bio) {
+  const t = cartTotals(), n = itemCount(cart);
   const sz = p.cat === 'caixas' ? BOX_SIZES[p.id].find(s => s.s === pd.size) : null;
   openModal(`<div class="mbody added">
     <h2>${icon('check', 26)}${T('Adicionado ao cabaz', 'Added to your basket')}</h2>
-    <div class="added-item"><span class="thumb">${artFor(p)}</span><div><b>${esc(L(p.name))}</b>${sz ? ` (${sizeName(sz.s)}, ${sz.kg} kg)` : ''}<br><span class="muted">${qty} × ${money(sz ? sz.price : p.price)}${sz ? '' : unitLabel(p.unit)}</span></div></div>
+    <div class="added-item"><span class="thumb">${artFor(p)}</span><div><b>${esc(L(p.name))}</b>${sz ? ` (${sizeName(sz.s)}, ${sz.kg} kg)` : ''}${!sz && bio ? ` (${T('biológico', 'organic')})` : ''}<br><span class="muted">${fmtQty(qty, p)} × ${money(sz ? sz.price : variantPrice(p, bio))}${sz ? '' : unitLabel(p.unit)}</span></div></div>
     <p class="muted">${T(`O cabaz tem ${n} ${n === 1 ? 'artigo' : 'artigos'}, subtotal ${money(t.sub)}. Próxima entrega: ${slotLabel(slotOptions()[0])}.`, `Your basket has ${n} ${n === 1 ? 'item' : 'items'}, subtotal ${money(t.sub)}. Next delivery: ${slotLabel(slotOptions()[0])}.`)}</p>
     <div class="row-btns"><a class="btn btn-green" href="${href('finalizar')}">${T('Finalizar encomenda', 'Check out')}</a><button class="btn btn-line c-campo" data-modal-close>${T('Continuar a comprar', 'Keep shopping')}</button><button class="link" data-cart-open-from-modal>${T('Ver cabaz', 'View basket')}</button></div>
   </div>`, T('Adicionado ao cabaz', 'Added to your basket'));

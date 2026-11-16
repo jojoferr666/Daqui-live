@@ -4,7 +4,9 @@
      2. as alterações feitas na conta de gestão neste navegador (localStorage "daqui-catalog").
    Formato (todas as chaves são opcionais):
    {
-     products:    { "<id>": { price, season:[início,fim], split:[agricultor,frio,daqui], outOfStock:true|false } },
+     products:    { "<id>": { price, season:[início,fim], split:[agricultor,frio,daqui], outOfStock:true|false,
+                              producers:[{farmer, organic, outOfStock}], aliases:["id antigo"] } },
+     removedProducts: [ "<id>" ],   // produtos juntados a outro (ver aliases)
      newProducts: [ { id, cat, name:{pt,en}, price, unit, farmer, icon, season, harvest, essential, organic, desc:{pt,en} } ],
      boxes:       { "caixa-mista": { "P": 11.9, "G": 21.9 } },
      harvestDays: [ { date, farmer, crop, what:{pt,en}, time, spots } ],   // substitui a lista inteira
@@ -28,6 +30,7 @@ function mergeChanges(a, b) {
   return out;
 }
 function applyChanges(ch) {
+  (ch.removedProducts || []).forEach(id => { const i = PRODUCTS.findIndex(p => p.id === id); if (i >= 0) PRODUCTS.splice(i, 1); });
   (ch.newProducts || []).forEach(np => { const ex = PRODUCTS.find(p => p.id === np.id); if (ex) Object.assign(ex, np); else PRODUCTS.push(Object.assign({ isNew: true }, np)); });
   for (const [id, o] of Object.entries(ch.products || {})) { const p = PRODUCTS.find(x => x.id === id); if (p) Object.assign(p, o); }
   for (const [id, sizes] of Object.entries(ch.boxes || {})) { (BOX_SIZES[id] || []).forEach(s => { if (sizes[s.s] != null) s.price = +sizes[s.s]; }); const b = PRODUCTS.find(x => x.id === id); if (b && BOX_SIZES[id]) b.price = Math.min(...BOX_SIZES[id].map(s => s.price)); }
@@ -51,6 +54,7 @@ function catalogChangeCount() {
   const S = typeof SAVED_CHANGES !== 'undefined' ? SAVED_CHANGES : {}, M = mergeChanges(S, LOCAL_CHANGES), same = (a, b) => JSON.stringify(a) === JSON.stringify(b); let n = 0;
   for (const k of ['products', 'boxes', 'farmers', 'restaurants']) for (const id of Object.keys(M[k] || {})) if (!same(M[k][id], (S[k] || {})[id])) n++;
   for (const k of ['newProducts', 'newFarmers', 'newRestaurants']) for (const x of M[k] || []) if (!same(x, (S[k] || []).find(y => y.id === x.id))) n++;
+  for (const id of M.removedProducts || []) if (!(S.removedProducts || []).includes(id)) n++;
   if (!same(M.harvestDays, S.harvestDays)) n++;
   return n;
 }
@@ -58,7 +62,8 @@ function catalogChangeCount() {
 function diffFromBase() {
   const B = CATALOG_BASE, ch = {}, same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   const pick = (o, keys) => Object.fromEntries(keys.filter(k => o[k] !== undefined).map(k => [k, o[k]]));
-  const PK = ['cat', 'name', 'price', 'unit', 'farmer', 'art', 'icon', 'season', 'harvest', 'essential', 'organic', 'outOfStock', 'split', 'desc'];
+  const PK = ['cat', 'name', 'price', 'unit', 'farmer', 'art', 'icon', 'season', 'harvest', 'essential', 'organic', 'outOfStock', 'split', 'desc', 'producers', 'aliases'];
+  const removed = B.products.filter(b => b.cat !== 'caixas' && !PRODUCTS.some(p => p.id === b.id)).map(b => b.id); if (removed.length) ch.removedProducts = removed;
   PRODUCTS.filter(p => p.cat !== 'caixas').forEach(p => {
     const b = B.products.find(x => x.id === p.id);
     if (!b) { (ch.newProducts = ch.newProducts || []).push(pick(p, ['id', ...PK])); return; }

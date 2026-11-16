@@ -180,7 +180,8 @@ function seedRequests() {
     { id: 'P-1001', type: 'incidencia', created: ago(15), status: 'tratado', user: 'maria', order: 'DQ104851', fields: { product: 'pera-rocha', what: 'Duas peras chegaram tocadas.', remedy: 'sub', photo: '' } },
     { id: 'P-1002', type: 'selo', created: ago(2), status: 'novo', user: null, fields: { restaurant: 'Taberna do Moliço', person: 'Rui Pinho', phone: '918765432', town: 'Ílhavo' } },
     { id: 'P-1003', type: 'agricultor', created: ago(1), status: 'novo', user: null, fields: { name: 'Carla Matos', phone: '965432100', town: 'Sever do Vouga', area: '1-5', crops: 'Mirtilo, kiwi' } },
-    { id: 'P-1004', type: 'produto', created: ago(1), status: 'novo', user: 'agr.joaquim', partnerUser: 'agr.joaquim', fields: { namePt: 'Pera Rocha biológica', nameEn: 'Organic Rocha pear', cat: 'fruta', price: '2.49', unit: 'kg', season: '8-4', desc: 'Pequena produção em modo biológico.' } }
+    { id: 'P-1004', type: 'produto', created: ago(1), status: 'novo', user: 'agr.joaquim', partnerUser: 'agr.joaquim', fields: { productId: 'pera-rocha', namePt: 'Pera Rocha do Oeste', nameEn: 'Rocha pear from the Oeste', organic: 'sim' } },
+    { id: 'P-1005', type: 'produto', created: ago(1), status: 'novo', user: 'agr.ines', partnerUser: 'agr.ines', fields: { namePt: 'Batata-doce biológica', nameEn: 'Organic sweet potato', cat: 'legumes', price: '1.99', unit: 'kg', season: '9-3', desc: 'Da Horta Viva, em Mira.', organic: 'sim' } }
   ];
 }
 let ORDERS = store.get(ORDERS_KEY, null); if (!Array.isArray(ORDERS)) { ORDERS = seedOrders(); store.set(ORDERS_KEY, ORDERS); }

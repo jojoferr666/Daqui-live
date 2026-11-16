@@ -90,6 +90,49 @@ for pid in products:
 
 # app para telemóvel (web app em /app e base da app Android): mesmos scripts do site + os da app
 APP_SCRIPTS = SCRIPTS + ['app-config', 'app-nativo', 'app-movel']
+# muda a cada versão: obriga o navegador a ir buscar os ficheiros novos (e não misturar com os antigos em cache)
+APP_VERSAO = '2026-11-16-v7'
+# se faltar um ficheiro no site ou houver um erro antes de a app abrir, mostra o motivo em vez de um ecrã vazio
+APP_GUARDA = r'''<script>
+(function () {
+  var erro = '';
+  function mostrar(pt, en, tipo) {
+    if (document.getElementById('daqui-falha')) return;
+    if (!document.body) { document.addEventListener('DOMContentLoaded', function () { mostrar(pt, en, tipo); }); return; }
+    var d = document.createElement('div');
+    d.id = 'daqui-falha';
+    d.setAttribute('role', 'alert');
+    if (tipo) d.setAttribute('data-tipo', tipo);
+    d.style.cssText = 'position:fixed;inset:0;z-index:99999;overflow:auto;background:#FFFDF6;color:#2F4C03;font:16px/1.5 system-ui,sans-serif;padding:12vh 24px 24px';
+    d.innerHTML = '<div style="max-width:30em;margin:0 auto"><p style="font-size:20px;margin:0 0 10px"><b>A app não abriu</b> · <span lang="en">The app did not open</span></p>'
+      + '<p style="margin:0 0 10px">' + pt + '</p><p lang="en" style="margin:0;color:#556">' + en + '</p></div>';
+    document.body.appendChild(d);
+  }
+  window.addEventListener('error', function (e) {
+    var t = e.target;
+    if (t && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) {
+      var f = (t.getAttribute('src') || t.getAttribute('href') || '').replace(/^(\.\.?\/)+/, '').replace(/\?.*$/, '');
+      if (/^https?:/.test(f)) return;
+      mostrar('Falta no site o ficheiro <b>' + f + '</b>. Confirme no GitHub que ele existe nessa pasta, a partir da raiz do repositório.',
+              'The file <b>' + f + '</b> is missing from the site. Check on GitHub that it exists in that folder, from the root of the repository.');
+    } else if (!window.__daquiPronto && !erro) {
+      erro = String(e.message || e.error || '?').replace(/</g, '&lt;');
+      setTimeout(verificar, 1500);
+    }
+  }, true);
+  window.addEventListener('unhandledrejection', function (e) {
+    if (window.__daquiPronto || erro) return;
+    var r = e.reason; erro = String((r && r.message) || r || '?').replace(/</g, '&lt;');
+    setTimeout(verificar, 1500);
+  });
+  window.addEventListener('load', function () { setTimeout(verificar, 20000); });
+  function verificar() {
+      if (window.__daquiPronto) return;
+      mostrar('Erro: <code>' + (erro || 'a app não terminou de carregar') + '</code>. Recarregue a página (no computador: Ctrl+F5). Se continuar, confirme que todos os ficheiros das pastas js/ e app/ foram atualizados no GitHub.',
+              'Reload the page (on a computer: Ctrl+F5). If it persists, check that every file in the js/ and app/ folders was updated on GitHub.', 'espera');
+  }
+})();
+</script>'''
 app_dir = SITE / 'app'; app_dir.mkdir(exist_ok=True)
 (app_dir / 'index.html').write_text(f'''<!DOCTYPE html>
 <html lang="pt-PT">
@@ -107,8 +150,9 @@ app_dir = SITE / 'app'; app_dir.mkdir(exist_ok=True)
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="{FONTS}" rel="stylesheet">
-<link rel="stylesheet" href="../css/styles.css">
-<link rel="stylesheet" href="../css/app.css">
+{APP_GUARDA}
+<link rel="stylesheet" href="../css/styles.css?v={APP_VERSAO}">
+<link rel="stylesheet" href="../css/app.css?v={APP_VERSAO}">
 </head>
 <body class="app" data-page="app" data-root="../">
 <div id="app"><noscript><p class="wrap">A app precisa de JavaScript. / The app needs JavaScript.</p></noscript></div>
@@ -116,7 +160,7 @@ app_dir = SITE / 'app'; app_dir.mkdir(exist_ok=True)
 <aside id="drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="cart-title"></aside>
 <div id="modal" class="modal"><div class="scrim"></div><div class="box" role="dialog" aria-modal="true"></div></div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
-{chr(10).join(f'<script src="../js/{x}.js"></script>' for x in APP_SCRIPTS)}
+{chr(10).join(f'<script src="../js/{x}.js?v={APP_VERSAO}"></script>' for x in APP_SCRIPTS)}
 </body>
 </html>
 ''', encoding='utf-8')

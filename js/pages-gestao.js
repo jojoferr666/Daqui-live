@@ -5,7 +5,7 @@
 const REQ_TYPES = () => ({ selo: T('Pedido de Selo Daqui', 'Daqui seal application'), agricultor: T('Adesão de agricultor', 'Farmer sign-up'), produto: T('Proposta de produto', 'Product proposal'),
   colhe: T('Proposta de Colhe Connosco', 'Join the Harvest proposal'), frio: T('Armazenamento em frio', 'Cold storage'), gerir: T('Gerir encomenda', 'Manage order'), seguimento: T('Seguimento', 'Tracking'),
   incidencia: T('Incidência', 'Problem report'), contacto: T('Mensagem', 'Message'), fundador: T('Membro fundador', 'Founding member') });
-const ADMIN_TABS = ['pedidos', 'encomendas', 'catalogo', 'caixas', 'colhe', 'subscricoes', 'contas', 'exportar'];
+const ADMIN_TABS = ['pedidos', 'mensagens', 'encomendas', 'catalogo', 'caixas', 'colhe', 'subscricoes', 'contas', 'exportar'];
 let adminTab = ADMIN_TABS.includes(QS.get('tab')) ? QS.get('tab') : 'pedidos';
 let inboxFilter = 'novo', catQuery = '', catFilter = 'all', accFilter = 'all';
 const monthOpts = sel => Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}"${+sel === i + 1 ? ' selected' : ''}>${monthName(i + 1, 'short')}</option>`).join('');
@@ -16,28 +16,49 @@ function adminPanel() {
   const clients = Object.values(USERS).filter(x => x.role !== 'admin');
   const subs = clients.flatMap(c => (c.subs || []).map(s => ({ c, s })));
   const nNew = REQUESTS.filter(r => r.status === 'novo').length;
-  const names = { pedidos: T('Pedidos e avisos', 'Requests'), encomendas: T('Encomendas', 'Orders'), catalogo: T('Catálogo', 'Catalogue'), caixas: T('Caixas e preços', 'Boxes and prices'), colhe: JTH(), subscricoes: T('Subscrições', 'Subscriptions'), contas: T('Contas', 'Accounts'), exportar: T('Guardar alterações', 'Save changes') };
-  const body = { pedidos: tabPedidos, encomendas: tabEncomendas, catalogo: tabCatalogo, caixas: tabCaixas, colhe: tabColhe, subscricoes: tabSubs, contas: tabContas, exportar: tabExportar }[adminTab]();
+  const nMsg = typeof chatUnread === 'function' ? chatUnread() : 0;
+  const names = { pedidos: T('Pedidos e avisos', 'Requests'), mensagens: T('Mensagens', 'Messages'), encomendas: T('Encomendas', 'Orders'), catalogo: T('Catálogo', 'Catalogue'), caixas: T('Caixas e preços', 'Boxes and prices'), colhe: JTH(), subscricoes: T('Subscrições', 'Subscriptions'), contas: T('Contas', 'Accounts'), exportar: T('Guardar alterações', 'Save changes') };
+  const body = { pedidos: tabPedidos, mensagens: tabMensagens, encomendas: tabEncomendas, catalogo: tabCatalogo, caixas: tabCaixas, colhe: tabColhe, subscricoes: tabSubs, contas: tabContas, exportar: tabExportar }[adminTab]();
   return `<section class="acc-sec"><div class="row-between"><h2>${T('Painel de gestão', 'Management panel')}</h2>${NUVEM.badge()}</div>
     <div class="kpis"><div><strong>${nNew}</strong><span>${T('pedidos novos', 'new requests')}</span></div><div><strong>${ORDERS.filter(o => orderStage(o) < 3).length}</strong><span>${T('encomendas por entregar', 'orders to deliver')}</span></div><div><strong>${subs.filter(x => x.s.status === 'ativa').length}</strong><span>${T('subscrições ativas', 'active subscriptions')}</span></div><div><strong>${clients.length}</strong><span>${T('contas registadas', 'registered accounts')}</span></div></div>
-    <nav class="admin-tabs" role="tablist" aria-label="${T('Secções do painel', 'Panel sections')}">${ADMIN_TABS.map(k => `<button role="tab" data-admin-tab="${k}" aria-selected="${adminTab === k}">${names[k]}${k === 'pedidos' && nNew ? ` <span class="count-in">${nNew}</span>` : ''}${k === 'exportar' && catalogChangeCount() ? ` <span class="count-in">${catalogChangeCount()}</span>` : ''}</button>`).join('')}</nav></section>
+    <nav class="admin-tabs" role="tablist" aria-label="${T('Secções do painel', 'Panel sections')}">${ADMIN_TABS.map(k => `<button role="tab" data-admin-tab="${k}" aria-selected="${adminTab === k}">${names[k]}${k === 'pedidos' && nNew ? ` <span class="count-in">${nNew}</span>` : ''}${k === 'mensagens' && nMsg ? ` <span class="count-in">${nMsg}</span>` : ''}${k === 'exportar' && catalogChangeCount() ? ` <span class="count-in">${catalogChangeCount()}</span>` : ''}</button>`).join('')}</nav></section>
   ${body}`;
 }
 
 /* ---------- Pedidos ---------- */
-function canApprove(r) { return !r.approved && r.partnerUser && USERS[r.partnerUser] && ['agricultor', 'selo', 'produto', 'colhe'].includes(r.type); }
-function approveLabel(r) { return { agricultor: T('Aprovar e pôr a quinta no mapa', 'Approve and add the farm to the map'), selo: T('Aprovar e atribuir o selo', 'Approve and award the seal'), produto: T('Aprovar e publicar o produto', 'Approve and publish the product'), colhe: T('Aprovar e criar o dia', 'Approve and create the day') }[r.type]; }
+/* pedidos de parceiros (adesões, selo, produtos, dias Colhe Connosco): Aprovar e publicar, Rejeitar ou só Marcar como tratado,
+   com uma mensagem opcional que o parceiro vê na sua conta e recebe na notificação do telemóvel */
+const PARTNER_REQ = ['agricultor', 'selo', 'produto', 'colhe'];
+const decisionOf = r => r.decision || (r.approved ? 'aprovado' : '');
+function canApprove(r) { return !decisionOf(r) && r.partnerUser && USERS[r.partnerUser] && PARTNER_REQ.includes(r.type); }
+function approveLabel(r) { return { agricultor: T('Põe a quinta no mapa e abre a área do agricultor.', 'Adds the farm to the map and opens the farmer area.'), selo: T('Atribui o selo e põe o restaurante no mapa.', 'Awards the seal and puts the restaurant on the map.'), produto: T('Publica o produto na loja (ou junta o agricultor a um produto que já existe).', 'Publishes the product in the shop (or adds the farmer to an existing product).'), colhe: T('Cria o dia e abre as inscrições.', 'Creates the day and opens sign-ups.') }[r.type]; }
+function decisionBadge(r) { const d = decisionOf(r); return d === 'aprovado' ? `<span class="status ativa">${T('Aprovado', 'Approved')}</span>` : d === 'rejeitado' ? `<span class="status pausada">${T('Rejeitado', 'Rejected')}</span>` : ''; }
+/* produtos com o mesmo nome (sem contar "biológico"): sugestões para juntar */
+function similarProducts(name) {
+  const b = baseName(name || ''); if (!b) return [];
+  return PRODUCTS.filter(p => p.cat !== 'caixas').filter(p => { const x = baseName(p.name.pt); return x === b || x.startsWith(b + ' ') || b.startsWith(x + ' '); });
+}
+function mergeChoice(r) {
+  const f = r.fields || {}; if (r.type !== 'produto' || f.productId || !canApprove(r)) return '';
+  const sim = similarProducts(f.namePt), others = PRODUCTS.filter(p => p.cat !== 'caixas' && !sim.includes(p)).sort((a, b) => L(a.name).localeCompare(L(b.name)));
+  return `<div class="field mt-s"><label for="rq-merge-${r.id}">${T('Este produto já existe na loja?', 'Is this product already in the shop?')}</label>
+    <select id="rq-merge-${r.id}"><option value="">${T('Não: criar um produto novo', 'No: create a new product')}</option>${sim.length ? `<optgroup label="${T('Parecidos', 'Similar')}">${sim.map((p, i) => `<option value="${p.id}"${i === 0 ? ' selected' : ''}>${esc(L(p.name))}</option>`).join('')}</optgroup>` : ''}<optgroup label="${T('Todos', 'All')}">${others.map(p => `<option value="${p.id}">${esc(L(p.name))}</option>`).join('')}</optgroup></select>
+    <span class="small muted">${T('Se escolher um produto, o agricultor passa a ser mais um produtor dele, ao preço da Daqui.', 'If you pick a product, the farmer becomes one more producer of it, at the Daqui price.')}</span></div>`;
+}
 function tabPedidos() {
   const types = REQ_TYPES(), all = REQUESTS.slice().sort((a, b) => b.created.localeCompare(a.created)), labels = REQ_LABELS();
   const counts = k => k === 'novo' ? all.filter(r => r.status === 'novo').length : k === 'all' ? all.length : all.filter(r => r.type === k).length;
   const shown = all.filter(r => inboxFilter === 'all' ? true : inboxFilter === 'novo' ? r.status === 'novo' : r.type === inboxFilter);
   const who = r => { const uu = r.user && USERS[r.user]; return uu ? `${esc(uu.name)} (${esc(uu.username)})` : esc(r.fields?.name || r.fields?.person || T('Visitante sem conta', 'Guest')); };
   const card = r => `<article class="req${r.status === 'novo' ? ' is-new' : ''}">
-    <div class="row-between"><div class="row-gap"><span class="rtype t-${r.type}">${types[r.type] || r.type}</span><b>${r.id}</b>${r.order ? `<span class="small">${T('Encomenda', 'Order')} ${r.order}</span>` : ''}${r.approved ? `<span class="status ativa">${T('Aprovado', 'Approved')}</span>` : ''}</div>
+    <div class="row-between"><div class="row-gap"><span class="rtype t-${r.type}">${types[r.type] || r.type}</span><b>${r.id}</b>${r.order ? `<span class="small">${T('Encomenda', 'Order')} ${r.order}</span>` : ''}${decisionBadge(r)}</div>
       <span class="small muted">${fdate(r.created, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
     <p class="small mt-s">${T('De', 'From')}: ${who(r)}</p>
     <dl class="req-f">${Object.entries(r.fields || {}).map(([k, v]) => `<div><dt>${esc(labels[k] || k)}</dt><dd>${k === 'photo' && /^https?:\/\//.test(v) ? `<a href="${esc(v)}" target="_blank" rel="noopener"><img class="req-photo" src="${esc(v)}" alt="${T('Fotografia da incidência', 'Problem photo')}"></a>` : esc(reqValue(k, v))}</dd></div>`).join('')}</dl>
-    <div class="row-btns">${canApprove(r) ? `<button class="btn btn-green btn-sm" data-approve="${r.id}">${icon('check', 16)}${approveLabel(r)}</button>` : ''}
+    ${r.reply ? `<p class="note small mt-s">${icon('inbox', 18)}<span><b>${T('Mensagem enviada ao parceiro', 'Message sent to the partner')}:</b> ${esc(r.reply)}</span></p>` : ''}
+    ${canApprove(r) ? `${mergeChoice(r)}<div class="field mt-s"><label for="rq-msg-${r.id}">${T('Mensagem para o parceiro (opcional)', 'Message to the partner (optional)')}</label><textarea id="rq-msg-${r.id}" rows="2" placeholder="${T('Aparece na conta do parceiro e na notificação do telemóvel.', 'Shows in the partner\'s account and in the phone notification.')}"></textarea></div>
+      <p class="small muted">${approveLabel(r)}</p>` : ''}
+    <div class="row-btns">${canApprove(r) ? `<button class="btn btn-green btn-sm" data-approve="${r.id}">${icon('check', 16)}${T('Aprovar e publicar', 'Approve and publish')}</button><button class="btn btn-line btn-sm c-tomato" data-reject="${r.id}">${icon('close', 16)}${T('Rejeitar', 'Reject')}</button>` : ''}
       <button class="btn btn-line btn-sm ${r.status === 'novo' ? 'c-campo' : ''}" data-req-toggle="${r.id}">${r.status === 'novo' ? T('Marcar como tratado', 'Mark as handled') : T('Reabrir', 'Reopen')}</button></div></article>`;
   return `<section class="acc-sec"><h2>${T('Pedidos e avisos', 'Requests and alerts')}</h2>
     <p class="muted mt-s">${T('Tudo o que é submetido no site: pedidos de selo, adesões de agricultores e restaurantes, propostas de produtos e de dias Colhe Connosco, incidências, gestão e seguimento de encomendas, mensagens e membros fundadores.', 'Everything submitted on the site: seal and farmer applications, product and Join the Harvest proposals, problem reports, order management and tracking, messages and founding members.')}</p>
@@ -45,7 +66,58 @@ function tabPedidos() {
     <div class="inbox">${shown.length ? shown.map(card).join('') : `<p class="muted">${T('Nada por tratar aqui.', 'Nothing to handle here.')}</p>`}</div></section>`;
 }
 function uniqueId(base, list) { let id = slugify(base) || 'novo', n = 2; while (list.some(x => x.id === id)) id = `${slugify(base)}-${n++}`; return id; }
-function approveRequest(r) {
+/* produtos com vários produtores: grava a lista de produtores e o que depende dela */
+function saveOffers(p, offers, extra = {}) {
+  const o = Object.assign({ producers: offers, organic: offers.some(x => x.organic), outOfStock: offers.length > 0 && offers.every(x => x.outOfStock), farmer: p.farmer && offers.some(x => x.farmer === p.farmer) ? p.farmer : (offers[0] || {}).farmer || p.farmer }, extra);
+  saveCatalog(ch => { ch.products = ch.products || {}; ch.products[p.id] = Object.assign(ch.products[p.id] || {}, o); });
+}
+/* mais um produtor (convencional ou biológico) num produto que já existe */
+function addOffer(p, fid, organic) {
+  const offers = offersOf(p).map(o => Object.assign({}, o));
+  if (offers.some(o => o.farmer === fid && !!o.organic === !!organic)) return false;
+  const extra = {};
+  if (!hasConv(p) && !organic) extra.price = round2(p.price / (1 + BIO_EXTRA));   // era só biológico: o preço passa a ser o do convencional
+  offers.push({ farmer: fid, organic: !!organic });
+  saveOffers(p, offers, extra); return true;
+}
+/* juntar produtos repetidos: "drop" passa a fazer parte de "keep" (produtores, favoritos, avisos; o endereço antigo continua a abrir) */
+function mergeProducts(keep, drop) {
+  if (!keep || !drop || keep === drop) return;
+  const offers = offersOf(keep).map(o => Object.assign({}, o));
+  offersOf(drop).forEach(o => { if (!offers.some(x => x.farmer === o.farmer && !!x.organic === !!o.organic)) offers.push(Object.assign({}, o)); });
+  const price = hasConv(keep) ? keep.price : hasConv(drop) ? drop.price : keep.price;
+  const aliases = [...new Set([...(keep.aliases || []), drop.id, ...(drop.aliases || [])])];
+  const swap = l => [...new Set((l || []).map(x => (x === drop.id ? keep.id : x)))];
+  Object.values(USERS).forEach(u => { u.favs = swap(u.favs); u.exclude = swap(u.exclude); u.notify = swap(u.notify); });
+  if (NUVEM.on) {
+    Object.assign(keep, { producers: offers, organic: offers.some(x => x.organic), price, aliases });
+    const i = PRODUCTS.indexOf(drop); if (i >= 0) PRODUCTS.splice(i, 1);
+    NUVEM.mergeProducts(keep.id, drop.id); return;
+  }
+  saveOffers(keep, offers, { price, aliases });
+  saveCatalog(ch => { ch.removedProducts = [...new Set([...(ch.removedProducts || []), drop.id])]; if (ch.products) delete ch.products[drop.id]; ch.newProducts = (ch.newProducts || []).filter(x => x.id !== drop.id); });
+  const i = PRODUCTS.indexOf(drop); if (i >= 0) PRODUCTS.splice(i, 1);
+  saveUsers();
+}
+function duplicateGroups() {
+  const items = PRODUCTS.filter(p => p.cat !== 'caixas'), g = {}, unit = p => p.unit || 'kg';
+  items.forEach(p => { const k = baseName(p.name.pt) + '|' + unit(p); (g[k] = g[k] || []).push(p); });
+  const groups = Object.values(g).filter(l => l.length > 1);
+  /* um produto só biológico cujo nome é o início do nome de um único produto convencional (ex.: "Pera Rocha biológica" e "Pera Rocha do Oeste") */
+  items.filter(p => hasBio(p) && !hasConv(p) && !groups.some(l => l.includes(p))).forEach(p => {
+    const b = baseName(p.name.pt); if (b.split(' ').length < 2) return;
+    const c = items.filter(x => x !== p && hasConv(x) && unit(x) === unit(p) && baseName(x.name.pt).startsWith(b + ' '));
+    if (c.length === 1) groups.push([c[0], p]);
+  });
+  /* fica o mais antigo (o do catálogo original, com a sua página); o preço passa a ser o do convencional, se houver */
+  return groups.map(l => l.slice().sort((a, b) => (!!a.isNew - !!b.isNew) || (PRODUCTS.indexOf(a) - PRODUCTS.indexOf(b)) || (hasConv(b) - hasConv(a))));
+}
+function rejectRequest(r, msg) {
+  const u = r.partnerUser && USERS[r.partnerUser];
+  if (u && u.partner && (r.type === 'agricultor' || r.type === 'selo')) { u.partner.rejected = true; u.partner.reply = msg || ''; saveUsers(); }
+  Object.assign(r, { decision: 'rejeitado', reply: msg || '', decidedAt: nowISO(), status: 'tratado' }); saveRequests(); return true;
+}
+function approveRequest(r, msg = '') {
   const u = USERS[r.partnerUser], f = r.fields || {};
   if (r.type === 'agricultor') {
     const id = uniqueId(u.partner.farm, FARMERS), c = REGION_CENTER[u.partner.region] || REGION_CENTER.aveiro, j = () => (Math.random() - .5) * .3;
@@ -59,16 +131,24 @@ function approveRequest(r) {
     Object.assign(nr, u.partner.draft || {}); delete u.partner.draft;
     saveCatalog(ch => { ch.newRestaurants = (ch.newRestaurants || []).concat(nr); }); u.partner.restId = id; u.partner.approved = true;
   } else if (r.type === 'produto') {
-    if (!u.partner.farmerId) { toast(T('Aprove primeiro a quinta deste agricultor.', 'Approve this farmer\'s farm first.')); return false; }
-    const [a, b] = String(f.season || '1-12').split('-').map(Number), id = uniqueId(f.namePt, PRODUCTS);
-    const np = { id, cat: f.cat === 'legumes' ? 'legumes' : 'fruta', name: { pt: f.namePt, en: f.nameEn || f.namePt }, price: +f.price || 1, unit: f.unit || 'kg', farmer: u.partner.farmerId, icon: '_novo', season: [a || 1, b || 12], harvest: 2, essential: false, organic: false, desc: { pt: f.desc || '', en: f.descEn || f.desc || '' } };
-    saveCatalog(ch => { ch.newProducts = (ch.newProducts || []).concat(np); }); r.productId = id;
+    const fid = u.partner.farmerId;
+    if (!fid) { toast(T('Aprove primeiro a quinta deste agricultor.', 'Approve this farmer\'s farm first.')); return false; }
+    /* pedidos antigos não têm o campo "organic": o nome diz se é biológico ("Pera Rocha biológica") */
+    const organic = f.organic != null ? f.organic === 'sim' || f.organic === true : /biol[oó]gic|\bbio\b|organic/i.test(`${f.namePt || ''} ${f.nameEn || ''}`), sel = document.getElementById('rq-merge-' + r.id);
+    const target = f.productId ? P(f.productId) : sel && sel.value ? P(sel.value) : null;
+    if (target) { if (!addOffer(target, fid, organic)) toast(T(`${u.name} já vendia ${L(target.name)} (${bioName(organic).toLowerCase()}).`, `${u.name} already sold ${L(target.name)} (${bioName(organic).toLowerCase()}).`)); r.productId = target.id; }
+    else {
+      const [a, b] = String(f.season || '1-12').split('-').map(Number), id = uniqueId(f.namePt, PRODUCTS);
+      const np = { id, cat: f.cat === 'legumes' ? 'legumes' : 'fruta', name: { pt: f.namePt, en: f.nameEn || f.namePt }, price: +f.price || 1, unit: f.unit || 'kg', farmer: fid, icon: '_novo', season: [a || 1, b || 12], harvest: 2, essential: false, organic, producers: [{ farmer: fid, organic }], desc: { pt: f.desc || '', en: f.descEn || f.desc || '' } };
+      saveCatalog(ch => { ch.newProducts = (ch.newProducts || []).concat(np); }); r.productId = id;
+    }
   } else if (r.type === 'colhe') {
     if (!u.partner.farmerId) { toast(T('Aprove primeiro a quinta deste agricultor.', 'Approve this farmer\'s farm first.')); return false; }
     const p = P(f.product); const day = { date: f.date, farmer: u.partner.farmerId, crop: p ? (p.art || 'alface') : 'alface', what: p ? { pt: p.name.pt, en: p.name.en } : { pt: f.product, en: f.product }, time: f.time || '10h–13h', spots: +f.spots || 20 };
     saveCatalog(ch => { ch.harvestDays = HARVEST_DAYS.map(d => Object.assign({}, d)).concat(day); });
   }
-  r.approved = true; r.status = 'tratado'; saveUsers(); saveRequests(); return true;
+  if (u && u.partner && (r.type === 'agricultor' || r.type === 'selo')) { u.partner.rejected = false; u.partner.reply = msg || ''; }
+  Object.assign(r, { approved: true, decision: 'aprovado', reply: msg || '', decidedAt: nowISO(), status: 'tratado' }); saveUsers(); saveRequests(); return true;
 }
 
 /* ---------- Encomendas ---------- */
@@ -81,7 +161,7 @@ function tabEncomendas() {
     <div class="tbl-wrap"><table class="tbl"><thead><tr><th>${T('Número', 'Number')}</th><th>${T('Cliente', 'Customer')}</th><th>${T('Entrega', 'Delivery')}</th><th>${T('Artigos', 'Items')}</th><th>Total</th><th>${T('Estado', 'Status')}</th></tr></thead><tbody>
     ${orders.map(o => `<tr><td><b>${o.num}</b><br><span class="small muted">${fdate(o.created)}</span></td><td>${esc(o.name)}${o.user ? '' : ` <span class="small muted">(${T('sem conta', 'guest')})</span>`}<br><span class="small muted">${esc(o.phone)}</span></td>
       <td>${o.deliver === 'home' ? `${T('Casa', 'Home')}: ${esc(o.address)}` : esc(o.point)}<br><span class="small muted">${slotLabel(o.slot)}${o.window ? ', ' + o.window : ''}</span></td>
-      <td class="small">${o.items.map(i => `${i.qty} × ${esc(P(i.id) ? L(P(i.id).name) : i.id)}${i.size ? ` (${sizeName(i.size)})` : ''}`).join('<br>')}${boxPrefs(o)}</td><td>${money(o.total)}</td>
+      <td class="small">${o.items.map(itemText).join('<br>')}${boxPrefs(o)}</td><td>${money(o.total)}</td>
       <td><label class="sr" for="os-${o.num}">${T('Estado de', 'Status of')} ${o.num}</label><select id="os-${o.num}" class="sel sm" data-order-stage="${o.num}">
         <option value="auto"${val(o) === 'auto' ? ' selected' : ''}>${T('Automático', 'Automatic')} (${auto(o)})</option>${stages.map((n, i) => `<option value="${i}"${val(o) === String(i) ? ' selected' : ''}>${o.deliver === 'home' ? n : STAGES_PICK()[i]}</option>`).join('')}<option value="cancel"${val(o) === 'cancel' ? ' selected' : ''}>${T('Cancelada', 'Cancelled')}</option></select></td></tr>`).join('')}
     </tbody></table></div></section>`;
@@ -105,8 +185,8 @@ function catRows() {
   return PRODUCTS.filter(p => p.cat !== 'caixas').filter(p => !q || norm(`${p.name.pt} ${p.name.en} ${p.id}`).includes(q))
     .filter(p => catFilter === 'all' || p.cat === catFilter || (catFilter === 'changed' && (ch[p.id] || newIds.includes(p.id))) || (catFilter === 'nostock' && p.outOfStock))
     .map(p => { const [a, b] = p.season, sp = splitOf(p), changed = ch[p.id] || newIds.includes(p.id);
-      return `<tr data-row="${p.id}"><td><div class="row-gap nowrap"><span class="thumb">${artFor(p)}</span><span><a href="${productHref(p)}">${esc(L(p.name))}</a><br><span class="small muted">${p.id}${changed ? ` · <b class="c-campo">${T('alterado', 'edited')}</b>` : ''}${p.isNew ? ` · ${T('novo', 'new')}` : ''}</span></span></div></td>
-        <td><input class="num" type="number" step="0.01" min="0" value="${p.price}" data-cat-edit="${p.id}" data-f="price" aria-label="${T('Preço de', 'Price of')} ${esc(L(p.name))}"><span class="small muted">${unitLabel(p.unit)}</span></td>
+      return `<tr data-row="${p.id}"><td><div class="row-gap nowrap"><span class="thumb">${artFor(p)}</span><span><a href="${productHref(p)}">${esc(L(p.name))}</a><br><span class="small muted">${p.id}${changed ? ` · <b class="c-campo">${T('alterado', 'edited')}</b>` : ''}${p.isNew ? ` · ${T('novo', 'new')}` : ''}</span><br><span class="small">${offersOf(p).map(o => `${esc((F(o.farmer) || { name: o.farmer }).name)} <span class="muted">(${o.organic ? 'bio' : T('conv.', 'conv.')}${o.outOfStock ? ', ' + T('sem stock', 'no stock') : ''})</span>`).join(', ')}</span></span></div></td>
+        <td><input class="num" type="number" step="0.01" min="0" value="${p.price}" data-cat-edit="${p.id}" data-f="price" aria-label="${T('Preço de', 'Price of')} ${esc(L(p.name))}"><span class="small muted">${unitLabel(p.unit)}${hasBio(p) && hasConv(p) ? `<br>${T('convencional; biológico', 'conventional; organic')} ${money(variantPrice(p, true))}` : hasBio(p) ? `<br>${T('biológico', 'organic')}` : ''}</span></td>
         <td class="nowrap"><select class="sel sm" data-cat-edit="${p.id}" data-f="s0" aria-label="${T('Início da época', 'Season start')}">${monthOpts(a)}</select> – <select class="sel sm" data-cat-edit="${p.id}" data-f="s1" aria-label="${T('Fim da época', 'Season end')}">${monthOpts(b)}</select></td>
         <td class="nowrap">${['sp0', 'sp1', 'sp2'].map((f, i) => `<input class="num pct" type="number" min="0" max="100" value="${sp[i]}" data-cat-edit="${p.id}" data-f="${f}" aria-label="${[T('Agricultor', 'Farmer'), T('Conservação e embalamento', 'Storage and packing'), 'Daqui'][i]} %">`).join('')}</td>
         <td><label class="switch sm"><input type="checkbox" data-cat-edit="${p.id}" data-f="stock"${p.outOfStock ? ' checked' : ''}>${T('Fora de stock', 'Out of stock')}</label>${inSeason(p) ? '' : `<br><span class="small muted">${T('fora de época', 'out of season')}</span>`}</td>
@@ -124,13 +204,22 @@ function tabCatalogo() {
         <div class="row"><div class="field"><label for="np-price">${T('Preço (€)', 'Price (€)')}</label><input id="np-price" type="number" step="0.01" min="0" required></div><div class="field"><label for="np-unit">${T('Unidade', 'Unit')}</label><select id="np-unit">${UNIT_OPTS('kg')}</select></div></div>
         <div class="row"><div class="field"><label for="np-s0">${T('Época: de', 'Season: from')}</label><select id="np-s0">${monthOpts(1)}</select></div><div class="field"><label for="np-s1">${T('até', 'to')}</label><select id="np-s1">${monthOpts(12)}</select></div></div>
         <div class="row"><div class="field"><label for="np-icon">${T('Ícone (ficheiro em img/produtos)', 'Icon (file in img/produtos)')}</label><select id="np-icon"><option value="_novo">${T('Provisório', 'Placeholder')} (_novo.svg)</option>${icons.map(i => `<option value="${i}">${i}.svg</option>`).join('')}</select></div>
-          <div class="field"><span class="lbl">${T('Etiquetas', 'Tags')}</span><label class="switch sm"><input type="checkbox" id="np-ess">${T('Essencial', 'Essential')}</label><label class="switch sm"><input type="checkbox" id="np-bio">${T('Biológico', 'Organic')}</label></div></div>
+          <div class="field"><span class="lbl">${T('Etiquetas', 'Tags')}</span><label class="switch sm"><input type="checkbox" id="np-ess">${T('Essencial', 'Essential')}</label><label class="switch sm"><input type="checkbox" id="np-bio">${T('Biológico', 'Organic')}</label><span class="small muted">${T('Só biológico: indique o preço do biológico. O biológico custa mais 20% do que o convencional.', 'Organic only: enter the organic price. Organic costs 20% more than conventional.')}</span></div></div>
         <div class="row"><div class="field"><label for="np-dpt">${T('Descrição em português', 'Description in Portuguese')}</label><textarea id="np-dpt" rows="2"></textarea></div><div class="field"><label for="np-den">${T('Descrição em inglês', 'Description in English')}</label><textarea id="np-den" rows="2"></textarea></div></div>
         <p class="err" hidden></p><button class="btn btn-green" type="submit">${T('Adicionar ao catálogo', 'Add to catalogue')}</button>
       </form></details>
+    ${dupPanel()}
     <div class="row-gap mt mb-s"><label class="sr" for="cat-q">${T('Procurar produto', 'Find a product')}</label><input id="cat-q" class="sel" type="search" placeholder="${T('Procurar produto…', 'Find a product…')}" value="${esc(catQuery)}" data-catq>
       <label class="sr" for="cat-f">${T('Filtro', 'Filter')}</label><select id="cat-f" class="sel" data-catf>${[['all', T('Todos', 'All')], ['fruta', T('Fruta', 'Fruit')], ['legumes', T('Legumes', 'Vegetables')], ['changed', NUVEM.on ? T('Produtos novos', 'New products') : T('Alterados neste navegador', 'Edited in this browser')], ['nostock', T('Fora de stock', 'Out of stock')]].map(([v, n]) => `<option value="${v}"${catFilter === v ? ' selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="tbl-wrap"><table class="tbl cat-tbl"><thead><tr><th>${T('Produto', 'Product')}</th><th>${T('Preço (€)', 'Price (€)')}</th><th>${T('Época', 'Season')}</th><th>${T('Divisão do preço (%)', 'Price split (%)')}<br><span class="small muted">${T('agricultor / frio / Daqui', 'farmer / cold / Daqui')}</span></th><th>Stock</th><th></th></tr></thead><tbody id="cat-body">${catRows()}</tbody></table></div></section>`;
+}
+
+function dupPanel() {
+  const groups = duplicateGroups(); if (!groups.length) return '';
+  return `<div class="panel mt"><h3>${icon('alert', 20)} ${T('Produtos repetidos', 'Duplicate products')}</h3>
+    <p class="small muted">${T('Têm o mesmo nome (sem contar "biológico") e a mesma unidade. Ao juntar, os agricultores, favoritos e avisos passam para o primeiro e o cliente escolhe entre convencional e biológico.', 'They share the same name (ignoring "organic") and unit. Merging moves farmers, favourites and reminders to the first one, and customers choose between conventional and organic.')}</p>
+    <ul class="hlist mt-s">${groups.map(l => `<li class="hrow"><span class="thumb">${artFor(l[0])}</span><div>${l.map((p, i) => `<b>${esc(L(p.name))}</b> <span class="small muted">(${p.id}${hasBio(p) ? ', ' + (hasConv(p) ? T('conv. e bio', 'conv. and organic') : 'bio') : ''})</span>${i < l.length - 1 ? ' + ' : ''}`).join('')}</div>
+      <button class="btn btn-green btn-sm" data-merge="${l.map(p => p.id).join(',')}">${T('Juntar em', 'Merge into')} ${esc(L(l[0].name))}</button></li>`).join('')}</ul></div>`;
 }
 
 /* ---------- Caixas ---------- */
@@ -146,13 +235,28 @@ function tabCaixas() {
 }
 
 /* ---------- Colhe Connosco ---------- */
+/* dias que já começaram: avaliações dos participantes e registo da colheita de cada um */
+function harvestDoneCard(d) {
+  const f = F(d.farmer), list = harvestList(d.date), sm = harvestSummary(d.date), past = harvestPast(d), key = d.date;
+  const rid = un => `${key}-${un.replace(/[^a-z0-9]/g, '_')}`;
+  return `<article class="panel mt-s"><div class="row-between"><div><b>${slotLabel(d.date)}</b>, ${d.time}<br><span class="small muted">${f ? esc(f.farm) : d.farmer} · ${esc(L(d.what))}</span></div>
+      <span class="status ${past ? 'pausada' : 'prog'}">${past ? T('Terminado', 'Finished') : T('A decorrer', 'In progress')}</span></div>
+    <p class="small mt-s">${sm.people} ${T('participantes', 'participants')} · ${sm.n ? `${stars(Math.round(sm.avg))} ${numFmt(round2(sm.avg))} (${sm.n} ${sm.n === 1 ? T('avaliação', 'review') : T('avaliações', 'reviews')})` : T('sem avaliações', 'no reviews')}${sm.kg ? ` · ${numFmt(sm.kg)} kg ${T('registados', 'recorded')}` : ''}</p>
+    ${list.length ? `<div class="tbl-wrap mt-s"><table class="tbl"><thead><tr><th>${T('Participante', 'Participant')}</th><th>${T('Avaliação', 'Review')}</th><th>${T('Registo de colheita', 'Harvest record')}</th></tr></thead><tbody>${list.map(x => { const h = (x.user.harvests || []).find(y => y.date === d.date) || {}, rec = h.record || {};
+      return `<tr><td><b>${esc(x.user.name)}</b><br><span class="small muted">${esc(x.user.phone)} · ${x.people} ${x.people > 1 ? T('pessoas', 'people') : T('pessoa', 'person')}</span></td>
+        <td>${h.rating ? `${stars(+h.rating)}${h.comment ? `<br><span class="small">${esc(h.comment)}</span>` : ''}` : `<span class="small muted">${harvestRateOpen(d) ? T('ainda não avaliou', 'not reviewed yet') : T('sem avaliação', 'no review')}</span>`}</td>
+        <td><div class="row-gap"><label class="sr" for="rg-kg-${rid(x.user.username)}">kg</label><input class="num" id="rg-kg-${rid(x.user.username)}" type="number" min="0" step="0.1" value="${rec.kg ?? ''}" placeholder="kg">
+          <label class="sr" for="rg-nt-${rid(x.user.username)}">${T('Nota', 'Note')}</label><input class="sel" id="rg-nt-${rid(x.user.username)}" value="${esc(rec.note || '')}" placeholder="${T('Nota (opcional)', 'Note (optional)')}">
+          <button class="btn btn-line btn-sm c-campo" data-reg-save="${d.date}|${x.user.username}">${rec.at ? T('Atualizar', 'Update') : T('Registar', 'Record')}</button></div></td></tr>`; }).join('')}</tbody></table></div>` : `<p class="small muted mt-s">${T('Sem inscritos.', 'No sign-ups.')}</p>`}
+  </article>`;
+}
 function tabColhe() {
-  const f0 = FARMERS[0];
-  const prodOpts = fid => PRODUCTS.filter(p => p.farmer === fid).map(p => `<option value="${p.id}">${esc(L(p.name))}</option>`).join('');
+  const f0 = FARMERS[0], upcoming = HARVEST_DAYS.filter(d => !harvestStarted(d)), started = HARVEST_DAYS.filter(harvestStarted).sort((a, b) => b.date.localeCompare(a.date));
+  const prodOpts = fid => ofFarmer(fid).map(p => `<option value="${p.id}">${esc(L(p.name))}</option>`).join('');
   return `<section class="acc-sec"><h2>${JTH()}</h2>
-    <p class="muted mt-s mb-s">${T('Altere o número máximo de participantes, apague dias ou crie dias novos numa quinta parceira.', 'Change the maximum number of participants, delete days or create new days on a partner farm.')}</p>
+    <h3 class="mt-s">${T('Próximos dias', 'Upcoming days')}</h3><p class="muted mt-s mb-s">${T('Altere o número máximo de participantes, apague dias ou crie dias novos numa quinta parceira. Os agricultores também podem editar os seus dias até começarem.', 'Change the maximum number of participants, delete days or create new days on a partner farm. Farmers can also edit their own days until they start.')}</p>
     <div class="tbl-wrap"><table class="tbl"><thead><tr><th>${T('Dia', 'Day')}</th><th>${T('Quinta e produto', 'Farm and produce')}</th><th>${T('Horário', 'Time')}</th><th>${T('Máximo', 'Maximum')}</th><th>${T('Inscritos', 'Signed up')}</th><th></th></tr></thead><tbody>
-    ${HARVEST_DAYS.map(d => { const f = F(d.farmer), list = harvestList(d.date), n = harvestPeople(d.date); return `<tr><td>${slotLabel(d.date)}</td><td>${f ? esc(f.farm) : d.farmer}<br><span class="small muted">${esc(L(d.what))}</span></td><td>${d.time}</td>
+    ${upcoming.map(d => { const f = F(d.farmer), list = harvestList(d.date), n = harvestPeople(d.date); return `<tr><td>${slotLabel(d.date)}</td><td>${f ? esc(f.farm) : d.farmer}<br><span class="small muted">${esc(L(d.what))}</span></td><td>${d.time}</td>
       <td><input class="num" type="number" min="${n}" value="${d.spots}" data-day-spots="${d.date}" aria-label="${T('Máximo de participantes', 'Maximum participants')}"></td>
       <td>${n}${list.length ? `<details><summary class="small link">${T('ver lista', 'see list')}</summary><ul class="small plain-ul">${list.map(x => `<li>${esc(x.user.name)}, ${esc(x.user.phone)} (${x.people})</li>`).join('')}</ul></details>` : ''}</td>
       <td><button class="rm" data-day-del="${d.date}" aria-label="${T('Apagar dia', 'Delete day')}">${icon('trash', 18)}</button></td></tr>`; }).join('')}</tbody></table></div>
@@ -162,7 +266,10 @@ function tabColhe() {
       <div class="row"><div class="field"><label for="nd-farm">${T('Quinta', 'Farm')}</label><select id="nd-farm" data-nd-farm>${FARMERS.map(f => `<option value="${f.id}">${esc(f.farm)} (${esc(f.name)})</option>`).join('')}</select></div>
         <div class="field"><label for="nd-prod">${T('Produto a colher', 'Produce to pick')}</label><select id="nd-prod">${prodOpts(f0.id)}</select></div></div>
       <div class="field"><label for="nd-spots">${T('Máximo de participantes', 'Maximum participants')}</label><input id="nd-spots" type="number" min="1" value="30" required></div>
-      <p class="err" hidden></p><button class="btn btn-green" type="submit">${T('Criar dia', 'Create day')}</button></form></section>`;
+      <p class="err" hidden></p><button class="btn btn-green" type="submit">${T('Criar dia', 'Create day')}</button></form></section>
+    <section class="acc-sec"><h2>${T('A decorrer e colheitas passadas', 'In progress and past harvests')}</h2>
+      <p class="muted mt-s">${T('Durante e depois de cada dia, registe o que cada participante colheu: o cliente vê o registo na sua conta. As avaliações abrem no início do dia e fecham 48 horas depois do fim.', 'During and after each day, record what each participant picked: the customer sees it in their account. Reviews open when the day starts and close 48 hours after it ends.')}</p>
+      ${started.length ? started.map(harvestDoneCard).join('') : `<p class="muted mt-s">${T('Ainda não houve dias.', 'No days yet.')}</p>`}</section>`;
 }
 
 /* ---------- Subscrições ---------- */
@@ -217,7 +324,12 @@ PAGE_EVENTS.click.push((e, t, d) => {
   if (d.accFilter) { accFilter = d.accFilter; rerenderKeep(`[data-acc-filter="${d.accFilter}"]`); return true; }
   if (d.inbox) { inboxFilter = d.inbox; rerenderKeep(`[data-inbox="${d.inbox}"]`); return true; }
   if (d.reqToggle) { const r = REQUESTS.find(x => x.id === d.reqToggle); r.status = r.status === 'novo' ? 'tratado' : 'novo'; saveRequests(); rerenderKeep(); return true; }
-  if (d.approve) { const r = REQUESTS.find(x => x.id === d.approve); if (approveRequest(r)) toast(T('Aprovado e publicado no site', 'Approved and published on the site')); rerenderKeep(); return true; }
+  if (d.approve) { const r = REQUESTS.find(x => x.id === d.approve), msg = ($('#rq-msg-' + r.id)?.value || '').trim(); if (approveRequest(r, msg)) toast(T('Aprovado e publicado. O parceiro foi avisado.', 'Approved and published. The partner has been notified.')); rerenderKeep(); return true; }
+  if (d.reject) { const r = REQUESTS.find(x => x.id === d.reject), msg = ($('#rq-msg-' + r.id)?.value || '').trim(); rejectRequest(r, msg); toast(T('Pedido rejeitado. O parceiro foi avisado.', 'Request rejected. The partner has been notified.')); rerenderKeep(); return true; }
+  if (d.merge) { const [keep, ...drop] = d.merge.split(',').map(P); drop.forEach(x => mergeProducts(keep, x)); toast(T(`Produtos juntados em ${L(keep.name)}`, `Products merged into ${L(keep.name)}`)); rerenderKeep(); return true; }
+  if (d.regSave) { const [date, un] = d.regSave.split('|'), u = USERS[un], h = u && (u.harvests || []).find(x => x.date === date); if (!h) return true;
+    const rid = `${date}-${un.replace(/[^a-z0-9]/g, '_')}`, kg = $('#rg-kg-' + rid).value, note = $('#rg-nt-' + rid).value.trim();
+    h.record = kg === '' && !note ? null : { kg: kg === '' ? null : round2(Math.max(0, +kg)), note, at: nowISO() }; if (!h.record) delete h.record; saveUsers(); toast(T(`Registo guardado: ${u.name}`, `Record saved: ${u.name}`)); rerenderKeep(`[data-reg-save="${d.regSave}"]`); return true; }
   if (d.delProd && NUVEM.on) { NUVEM.deleteProduct(d.delProd); const i = PRODUCTS.findIndex(p => p.id === d.delProd); if (i >= 0) PRODUCTS.splice(i, 1); toast(T('Produto apagado', 'Product deleted')); rerenderKeep(); return true; }
   if (d.delProd) { saveCatalog(ch => { ch.newProducts = (ch.newProducts || []).filter(x => x.id !== d.delProd); if (ch.products) delete ch.products[d.delProd]; }); const i = PRODUCTS.findIndex(p => p.id === d.delProd); if (i >= 0 && !(SAVED_CHANGES.newProducts || []).some(x => x.id === d.delProd)) PRODUCTS.splice(i, 1); toast(T('Produto apagado', 'Product deleted')); rerenderKeep(); return true; }
   if (d.dayDel) { const n = harvestPeople(d.dayDel); if (n && !t.dataset.confirm) { t.dataset.confirm = '1'; toast(T(`Este dia tem ${n} inscritos. Carregue outra vez para apagar.`, `This day has ${n} people signed up. Click again to delete.`)); return true; }
@@ -239,13 +351,13 @@ PAGE_EVENTS.change.push((e, t) => {
       $$('.pct', row).forEach(i => i.toggleAttribute('aria-invalid', sum !== 100));
       if (sum !== 100) { toast(T(`A soma dá ${sum}%: tem de dar 100%`, `The total is ${sum}%: it must be 100%`)); return; }
       saveCatalog(ch => { ch.products = ch.products || {}; ch.products[id] = Object.assign(ch.products[id] || {}, { split: sp }); }); toast(T(`Divisão de ${L(p.name)}: ${sp.join(' / ')}`, `${L(p.name)} split: ${sp.join(' / ')}`)); }
-    if (d.f === 'stock') { saveCatalog(ch => { ch.products = ch.products || {}; ch.products[id] = Object.assign(ch.products[id] || {}, { outOfStock: t.checked }); }); toast(t.checked ? T(`${L(p.name)}: fora de stock`, `${L(p.name)}: out of stock`) : T(`${L(p.name)}: com stock`, `${L(p.name)}: in stock`)); }
+    if (d.f === 'stock') { if (p.producers && p.producers.length) saveOffers(p, p.producers.map(o => Object.assign({}, o, { outOfStock: t.checked }))); else saveCatalog(ch => { ch.products = ch.products || {}; ch.products[id] = Object.assign(ch.products[id] || {}, { outOfStock: t.checked }); }); toast(t.checked ? T(`${L(p.name)}: fora de stock`, `${L(p.name)}: out of stock`) : T(`${L(p.name)}: com stock`, `${L(p.name)}: in stock`)); }
     return;
   }
   if (d.catf !== undefined && t.id === 'cat-f') { catFilter = t.value; $('#cat-body').innerHTML = catRows(); return; }
   if (d.boxPrice) { const [id, sz] = d.boxPrice.split(':'), v = Math.max(0, +t.value || 0); saveCatalog(ch => { ch.boxes = ch.boxes || {}; ch.boxes[id] = Object.assign(ch.boxes[id] || {}, { [sz]: +v.toFixed(2) }); }); Object.values(USERS).forEach(c => (c.subs || []).forEach(sb => refreshSub(sb))); saveUsers(); toast(T('Preço da caixa atualizado', 'Box price updated')); rerenderKeep(`[data-box-price="${d.boxPrice}"]`); return; }
   if (d.daySpots) { const v = Math.max(+t.min || 1, +t.value || 1); saveCatalog(ch => { ch.harvestDays = HARVEST_DAYS.map(x => Object.assign({}, x, x.date === d.daySpots ? { spots: v } : {})); }); toast(T(`Máximo de participantes: ${v}`, `Maximum participants: ${v}`)); return; }
-  if (d.ndFarm !== undefined && t.id === 'nd-farm') { $('#nd-prod').innerHTML = PRODUCTS.filter(p => p.farmer === t.value).map(p => `<option value="${p.id}">${esc(L(p.name))}</option>`).join(''); return; }
+  if (d.ndFarm !== undefined && t.id === 'nd-farm') { $('#nd-prod').innerHTML = ofFarmer(t.value).map(p => `<option value="${p.id}">${esc(L(p.name))}</option>`).join(''); return; }
 });
 PAGE_EVENTS.input.push((e, t) => { if (adminOnly() && t.id === 'cat-q') { catQuery = t.value; $('#cat-body').innerHTML = catRows(); } });
 PAGE_EVENTS.submit.push((e, f) => {
@@ -254,7 +366,7 @@ PAGE_EVENTS.submit.push((e, f) => {
     e.preventDefault(); if (!validate(f)) return true;
     const id = uniqueId($('#np-pt').value, PRODUCTS);
     const np = { id, cat: $('#np-cat').value, name: { pt: $('#np-pt').value.trim(), en: $('#np-en').value.trim() }, price: +(+$('#np-price').value).toFixed(2), unit: $('#np-unit').value, farmer: $('#np-farmer').value, icon: $('#np-icon').value,
-      season: [+$('#np-s0').value, +$('#np-s1').value], harvest: 2, essential: $('#np-ess').checked, organic: $('#np-bio').checked, desc: { pt: $('#np-dpt').value.trim(), en: $('#np-den').value.trim() } };
+      season: [+$('#np-s0').value, +$('#np-s1').value], harvest: 2, essential: $('#np-ess').checked, organic: $('#np-bio').checked, producers: [{ farmer: $('#np-farmer').value, organic: $('#np-bio').checked }], desc: { pt: $('#np-dpt').value.trim(), en: $('#np-den').value.trim() } };
     saveCatalog(ch => { ch.newProducts = (ch.newProducts || []).concat(np); }); catFilter = 'changed'; toast(T(`Produto adicionado: ${np.name.pt}`, `Product added: ${np.name.en}`)); rerenderKeep('#cat-q'); return true;
   }
   if (f.matches('[data-newday]')) {

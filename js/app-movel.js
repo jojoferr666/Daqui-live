@@ -14,7 +14,7 @@ const INTRO_KEY = 'daqui-app-boas-vindas';
 const PICKUP_COORDS = { 'Armazém Daqui, Vagos': [40.5545, -8.6826], 'Aveiro, Rossio': [40.6424, -8.6553], 'Ílhavo': [40.6003, -8.6667], 'Oliveira do Bairro': [40.5146, -8.4937], 'Mira': [40.4286, -8.7373], 'Águeda': [40.5747, -8.4448] };
 const AVEIRO = { lat: 40.6405, lon: -8.6538 };
 let appPos = store.get('daqui-app-posicao', null);   // { lat, lon } da última vez que deu a localização
-let lojaCat = 'tudo', lojaQ = '', mapaV = 'recolha', introStep = 0, detQty = 1, detSize = '', incPhoto = null, incPhotoUrl = '';
+let lojaCat = 'tudo', lojaQ = '', mapaV = 'recolha', introStep = 0, detQty = 1, detSize = '', detBio = null, detFor = '', incPhoto = null, incPhotoUrl = '';
 
 /* ---------- endereços: caminhos do site → ecrãs da app ---------- */
 href = function (path = '', query = '') {
@@ -88,11 +88,12 @@ function prodCard(p) {
   const action = box ? `<a class="a-add" href="${productHref(p)}" aria-label="${T('Escolher tamanho', 'Choose size')}: ${esc(L(p.name))}">${icon('chevR', 20)}</a>`
     : available(p) ? `<button class="a-add" data-add="${p.id}" aria-label="${T('Adicionar ao cabaz', 'Add to basket')}: ${esc(L(p.name))}">${icon('plus', 20)}</button>`
     : `<button class="a-add off" data-notify="${p.id}" aria-pressed="${notifyOn(p.id)}" aria-label="${T('Avisar-me', 'Notify me')}: ${esc(L(p.name))}">${icon('bell', 18)}</button>`;
+  const more = offersOf(p).map(o => o.farmer).filter((x, i, a) => a.indexOf(x) === i).length - 1;
   return `<article class="a-card${on && !p.outOfStock ? '' : ' is-off'}">
-    <a class="a-card-img${box ? ' box' : ''}" href="${productHref(p)}">${artFor(p)}${!on ? `<span class="a-flag">${T('Volta em', 'Back in')} ${monthName(p.season[0], 'short')}</span>` : p.outOfStock ? `<span class="a-flag">${T('Esgotado', 'Sold out')}</span>` : p.organic ? `<span class="a-flag bio">${T('Bio', 'Organic')}</span>` : ''}</a>
+    <a class="a-card-img${box ? ' box' : ''}" href="${productHref(p)}">${artFor(p)}${!on ? `<span class="a-flag">${T('Volta em', 'Back in')} ${monthName(p.season[0], 'short')}</span>` : p.outOfStock ? `<span class="a-flag">${T('Esgotado', 'Sold out')}</span>` : hasBio(p) ? `<span class="a-flag bio">${hasConv(p) ? T('Também bio', 'Organic too') : T('Bio', 'Organic')}</span>` : ''}</a>
     ${favBtn(p.id)}
-    <a class="a-card-body" href="${productHref(p)}"><b>${esc(L(p.name))}</b><span class="muted">${box ? `${p.kg} kg, ${T('vários agricultores', 'several farmers')}` : f ? esc(f.place) : ''}</span>
-      <span class="a-price">${box ? T('desde', 'from') + ' ' : ''}${money(p.price)}<small>${box ? '' : unitLabel(p.unit)}</small></span></a>${action}</article>`;
+    <a class="a-card-body" href="${productHref(p)}"><b>${esc(L(p.name))}</b><span class="muted">${box ? `${p.kg} kg, ${T('vários agricultores', 'several farmers')}` : f ? esc(f.place) + (more > 0 ? ` ${T(`e mais ${more}`, `+${more}`)}` : '') : ''}</span>
+      <span class="a-price">${box ? T('desde', 'from') + ' ' : ''}${money(shownPrice(p))}<small>${box ? '' : unitLabel(p.unit)}</small></span></a>${action}</article>`;
 }
 function boxCard(b) {
   const next = slotOptions()[0];
@@ -158,7 +159,7 @@ function scrLoja(u) {
   const q = norm(lojaQ.trim());
   const favs = u ? u.favs || [] : [];
   const cats = [['tudo', T('Tudo', 'All')], ['caixas', T('Caixas', 'Boxes')], ['fruta', T('Fruta', 'Fruit')], ['legumes', T('Legumes', 'Veg')], ['bio', T('Biológico', 'Organic')], ['favoritos', T('Favoritos', 'Favourites')]];
-  const list = PRODUCTS.filter(p => (lojaCat === 'tudo' || p.cat === lojaCat || (lojaCat === 'bio' && p.organic) || (lojaCat === 'favoritos' && favs.includes(p.id))) && (!q || norm(`${p.name.pt} ${p.name.en} ${p.farmer ? F(p.farmer).place + ' ' + F(p.farmer).name : ''}`).includes(q)))
+  const list = PRODUCTS.filter(p => (lojaCat === 'tudo' || p.cat === lojaCat || (lojaCat === 'bio' && hasBio(p)) || (lojaCat === 'favoritos' && favs.includes(p.id))) && (!q || norm(`${p.name.pt} ${p.name.en} ${offersOf(p).map(o => F(o.farmer)).filter(Boolean).map(f => f.place + ' ' + f.name).join(' ')}`).includes(q)))
     .sort((a, b) => (a.cat === 'caixas' ? 0 : available(a) ? 1 : 2) - (b.cat === 'caixas' ? 0 : available(b) ? 1 : 2));
   return { title: T('Loja', 'Shop'), fab: true, html: `
     <div class="a-sticky"><label class="a-search">${icon('search', 20)}<span class="sr">${T('Procurar', 'Search')}</span><input type="search" id="a-q" value="${esc(lojaQ)}" placeholder="${T('Procurar fruta, legumes, quinta…', 'Search fruit, veg, farm…')}" autocomplete="off"></label>
@@ -173,7 +174,10 @@ function scrProduto(id, u) {
   const box = p.cat === 'caixas', on = inSeason(p), f = p.farmer ? F(p.farmer) : null, h = harvestOf(p), a = typeof ANALYSES !== 'undefined' ? ANALYSES[p.id] : null;
   const [sa, sb, sc] = splitOf(p), sizes = box ? BOX_SIZES[p.id] : null;
   if (box && !sizes.some(s => s.s === detSize)) detSize = sizes[0].s;
-  const unit = box ? sizes.find(s => s.s === detSize).price : p.price, total = unit * detQty;
+  if (detFor !== p.id) { detFor = p.id; detQty = 1; detBio = null; }
+  if (!box && (detBio === null || (!offerOn(p, detBio) && offerOn(p, !detBio)))) detBio = defaultBio(p);
+  if (!box && detQty < qtyStep(p)) detQty = qtyStep(p);
+  const unit = box ? sizes.find(s => s.s === detSize).price : variantPrice(p, detBio), total = round2(unit * detQty), nOff = farmersOf(p).length;
   const months = Array.from({ length: 12 }, (_, i) => { const m = i + 1, [x, y] = p.season || [1, 12], inS = x <= y ? m >= x && m <= y : m >= x || m <= y; return `<i class="${inS ? 'on' : ''}${m === NOW_M ? ' now' : ''}" title="${monthName(m)}">${monthName(m, 'narrow')}</i>`; }).join('');
   const pool = box ? PRODUCTS.filter(x => x.cat !== 'caixas' && available(x) && (p.id === 'caixa-essencial' ? x.essential : p.id === 'caixa-fruta' ? x.cat === 'fruta' : p.id === 'caixa-legumes' ? x.cat === 'legumes' : true) && !(u && (u.exclude || []).includes(x.id))) : [];
   const sample = p.id === 'caixa-mista' ? pool.filter(x => x.cat === 'fruta').slice(0, 4).concat(pool.filter(x => x.cat === 'legumes').slice(0, 4)) : pool.slice(0, 8);
@@ -182,7 +186,10 @@ function scrProduto(id, u) {
     <div class="a-pdp">
       <h1>${esc(L(p.name))}</h1>
       ${f ? `<a class="a-farm" href="${farmerHref(f)}"><span class="a-farm-art">${farmSVG(f.seed || 0, f.crop || 'pera')}</span><span><b>${esc(f.farm)}</b><span class="muted small">${esc(f.name)}, ${esc(f.place)}</span></span>${icon('chevR', 18)}</a>` : `<p class="muted">${T('Vários agricultores; a composição muda todas as semanas.', 'Several farmers; the selection changes every week.')}</p>`}
-      <div class="a-pdp-price"><b>${money(unit)}</b><span>${box ? `${sizes.find(s => s.s === detSize).kg} kg` : unitLabel(p.unit)}</span>${badges(p)}</div>
+      ${nOff > 1 ? `<p class="small">${T('Produzido por', 'Grown by')}: ${producersLine(p)}</p>` : ''}
+      <div class="a-pdp-price"><b>${money(unit)}</b><span>${box ? `${sizes.find(s => s.s === detSize).kg} kg` : unitLabel(p.unit) + (hasBio(p) ? `, ${bioName(detBio).toLowerCase()}` : '')}</span>${badges(p)}</div>
+      ${!box && hasBio(p) && hasConv(p) ? `<fieldset class="a-sizes a-bio"><legend class="lbl">${T('Modo de produção', 'Farming method')}</legend>${[false, true].map(b => `<button type="button" data-det-bio="${b ? 1 : 0}" aria-pressed="${detBio === b}"${offerOn(p, b) ? '' : ' disabled'}><b>${bioName(b)}</b><span>${money(variantPrice(p, b))}${unitLabel(p.unit)}${b ? ` (+${Math.round(BIO_EXTRA * 100)}%)` : ''}${offerOn(p, b) ? '' : ' · ' + T('esgotado', 'sold out')}</span></button>`).join('')}</fieldset>` : ''}
+      ${byKg(p) && available(p) ? `<p class="small muted">${T('Pode encomendar ao meio quilo (por exemplo 2,5 kg).', 'You can order by the half kilo (for example 2.5 kg).')}</p>` : ''}
       ${box ? `<fieldset class="a-sizes"><legend class="lbl">${T('Tamanho', 'Size')}</legend>${sizes.map(s => `<button type="button" data-det-size="${s.s}" aria-pressed="${detSize === s.s}"><b>${sizeName(s.s)}</b><span>${s.kg} kg, ${money(s.price)}</span></button>`).join('')}</fieldset>
         <a class="a-sub-cta" href="#/subscrever/${p.id}?tamanho=${detSize}">${icon('repeat', 20)}<span><b>${T('Receber todas as semanas', 'Get it every week')}</b><span class="small">${T('Subscrição com preço garantido durante 12 meses', 'Subscription with a 12-month price guarantee')}</span></span>${icon('chevR', 18)}</a>` : ''}
       <p class="a-lead">${esc(L(p.desc))}</p>
@@ -194,7 +201,7 @@ function scrProduto(id, u) {
       ${a ? `<details class="a-acc"><summary>${icon('shield', 18)}${T('Análises de laboratório', 'Lab analyses')}</summary><p class="small">${T(`Boletim n.º ${a.n}, de ${fdate(a.date, { day: 'numeric', month: 'long', year: 'numeric' })}: resíduos de pesticidas, metais pesados e açúcar (brix) dentro dos limites.`, `Report no. ${a.n}, ${fdate(a.date, { day: 'numeric', month: 'long', year: 'numeric' })}: pesticide residues, heavy metals and sugar (brix) within limits.`)}</p><a class="link small" href="${R}docs/analises/${p.id}.pdf">${T('Abrir o boletim (PDF)', 'Open the report (PDF)')}</a></details>` : ''}
       <details class="a-acc"><summary>${icon('truck', 18)}${T('Entrega e levantamento', 'Delivery and collection')}</summary><p class="small">${T(`Distribuímos à quinta-feira e ao sábado. Encomendas para quinta-feira até terça às 18h; para sábado até quinta às 18h. Levantamento grátis em ${PICKUP_POINTS.length} pontos ou entrega em casa por ${money(DELIVERY_FEE)}.`, `We deliver on Thursdays and Saturdays. Order by Tuesday 6 pm for Thursday, by Thursday 6 pm for Saturday. Free collection at ${PICKUP_POINTS.length} points or home delivery for ${money(DELIVERY_FEE)}.`)}</p></details>
     </div>
-    <div class="a-buy">${available(p) || box ? `<div class="qty"><button data-det-qty="-1" aria-label="${T('Menos um', 'One less')}">${icon('minus', 16)}</button><span aria-live="polite">${detQty}</span><button data-det-qty="1" aria-label="${T('Mais um', 'One more')}">${icon('plus', 16)}</button></div>
+    <div class="a-buy">${available(p) || box ? `<div class="qty"><button data-det-qty="-1" aria-label="${byKg(p) ? T('Menos meio quilo', 'Half a kilo less') : T('Menos um', 'One less')}">${icon('minus', 16)}</button><span aria-live="polite">${fmtQty(detQty, p)}</span><button data-det-qty="1" aria-label="${byKg(p) ? T('Mais meio quilo', 'Half a kilo more') : T('Mais um', 'One more')}">${icon('plus', 16)}</button></div>
       <button class="a-big-btn" data-det-add="${p.id}">${T('Adicionar', 'Add')} · ${money(total)}</button>`
       : `<button class="a-big-btn ghost" data-notify="${p.id}" aria-pressed="${notifyOn(p.id)}">${icon('bell', 18)} ${notifyOn(p.id) ? T('Aviso ativo', 'Reminder on') : on ? T('Esgotado: avisar-me', 'Sold out: notify me') : T('Avisar-me quando voltar', 'Notify me when it\'s back')}</button>`}</div>` };
 }
@@ -210,9 +217,21 @@ function scrMapa() {
     <div class="a-pad">${appPos ? `<p class="small muted mb-s">${icon('locate', 14)} ${T('Distâncias a partir da sua localização.', 'Distances from your location.')} <button class="link" data-app-locate>${T('Atualizar', 'Update')}</button></p>` : `<button class="a-locate mb-s" data-app-locate>${icon('locate', 18)}${T('Usar a minha localização', 'Use my location')}</button><p class="small muted mb-s">${T('Sem localização, as distâncias contam a partir do centro de Aveiro.', 'Without your location, distances are from Aveiro city centre.')}</p>`}${body}</div>` };
 }
 
+/* ajuda e documentos legais: em todas as contas (cliente, agricultor, restaurante e gestão) */
+function appHelpRows(chat = true) {
+  const n = chat ? chatUnread() : 0;
+  const list = [...(chat ? [['#/mensagens', 'chat', T('Falar com a Daqui', 'Talk to Daqui'), n ? `${n} ${n === 1 ? T('mensagem nova', 'new message') : T('mensagens novas', 'new messages')}` : T('Escreva-nos: respondemos aqui', 'Write to us: we reply here')]] : []),
+    ['#/info/contacto', 'phone', T('Contacto e ajuda', 'Contact and help')], ['#/info/faq', 'help', T('Perguntas frequentes', 'FAQ')], ['#/info/sobre', 'leaf', T('Sobre a Daqui', 'About Daqui')]];
+  const legal = [['termos', T('Termos de utilização', 'Terms of use')], ['privacidade', T('Privacidade', 'Privacy')], ['cookies', 'Cookies'], ['devolucoes', T('Devoluções e reembolsos', 'Refunds')]];
+  const row = ([h, ic, t, sub]) => `<a class="a-row" href="${h}"><span class="a-row-ic">${icon(ic, 20)}</span><span><b>${t}</b>${sub ? `<span class="muted small">${sub}</span>` : ''}</span>${icon('chevR', 18)}</a>`;
+  return `<div class="a-menu">${list.map(row).join('')}</div><h2 class="a-h2 a-menu-h">${T('Informação legal', 'Legal')}</h2><div class="a-menu">${legal.map(([k, t]) => row([`#/info/politicas?sec=${k}`, 'shield', t])).join('')}</div>`;
+}
+function scrMensagens(u) {
+  return { title: T('Falar com a Daqui', 'Talk to Daqui'), back: true, noTabs: false, html: `<div class="a-pad a-chat">${chatBody()}</div>`, after: () => { const c = myConv(); if (c) chatMarkRead(c, 'gestao'); const m = $('#msgs'); if (m) m.scrollTop = m.scrollHeight; chatPoll(); } };
+}
 function scrConta(u) {
   const rows = (list) => `<div class="a-menu">${list.map(([h, ic, t, sub]) => `<a class="a-row" href="${h}"><span class="a-row-ic">${icon(ic, 20)}</span><span><b>${t}</b>${sub ? `<span class="muted small">${sub}</span>` : ''}</span>${icon('chevR', 18)}</a>`).join('')}</div>`;
-  const help = rows([['#/info/contacto', 'phone', T('Contacto e ajuda', 'Contact and help')], ['#/info/faq', 'help', T('Perguntas frequentes', 'FAQ')], ['#/info/sobre', 'leaf', T('Sobre a Daqui', 'About Daqui')], ['#/info/politicas', 'shield', T('Políticas', 'Policies')]]);
+  const help = appHelpRows();
   const langRow = `<div class="a-row"><span class="a-row-ic">${icon('globe', 20)}</span><span><b>${T('Língua', 'Language')}</b></span>${langToggle()}</div>`;
   const pushRow = NATIVO.pushAvailable() && u ? `<button class="a-row" data-push-on><span class="a-row-ic">${icon('bell', 20)}</span><span><b>${T('Notificações', 'Notifications')}</b><span class="muted small">${NATIVO.pushState === 'on' ? T('Ativas neste telemóvel', 'On for this phone') : T('Toque para ativar', 'Tap to turn on')}</span></span>${icon('chevR', 18)}</button>` : '';
   if (!u) return { title: T('Conta', 'Account'), fab: true, html: `<div class="a-pad"><div class="a-guest">${icon('user', 34)}<h2>${T('Entre ou crie conta', 'Sign in or create an account')}</h2><p class="muted">${T('Para seguir encomendas, guardar favoritos e subscrever caixas.', 'To track orders, save favourites and subscribe to boxes.')}</p>
@@ -246,7 +265,7 @@ function scrEncomenda(num, u) {
       <div class="a-swipe" data-swipe="${o.num}"><span class="a-swipe-label">${T('Deslize para confirmar o levantamento', 'Swipe to confirm collection')}</span><button class="a-swipe-knob" data-swipe-knob="${o.num}" aria-label="${T('Confirmar o levantamento', 'Confirm collection')}">${icon('chevR', 26)}</button></div></div>` : ''}
     ${st === 3 && o.deliver === 'pickup' ? `<p class="note done">${icon('check', 22)}<span><b>${T('Levantada', 'Collected')}.</b> ${T('Bom proveito!', 'Enjoy!')}</span></p>` : ''}
     <div class="a-panel">${trackHTML(o)}</div>
-    <div class="a-panel"><h2 class="a-h2">${T('Artigos', 'Items')}</h2><div class="a-items">${o.items.map(i => { const p = P(i.id); return `<div class="a-item"><span class="thumb">${p ? artFor(p) : ''}</span><span>${i.qty} × ${esc(p ? L(p.name) : i.id)}${i.size ? ` (${sizeName(i.size)})` : ''}</span><b>${money(i.price * i.qty)}</b></div>`; }).join('')}</div>
+    <div class="a-panel"><h2 class="a-h2">${T('Artigos', 'Items')}</h2><div class="a-items">${o.items.map(i => { const p = P(i.id); return `<div class="a-item"><span class="thumb">${p ? artFor(p) : ''}</span><span>${itemText(i)}</span><b>${money(round2(i.price * i.qty))}</b></div>`; }).join('')}</div>
       <div class="sum"><span>${T('Entrega', 'Delivery')}</span><span>${o.fee ? money(o.fee) : T('Grátis', 'Free')}</span></div><div class="sum tot"><span>Total</span><span>${money(o.total)}</span></div>
       ${o.prefs ? `<p class="small muted mt-s">${T('Nas caixas não vai', 'Boxes will leave out')}: ${(o.prefs.exclude || []).map(P).filter(Boolean).map(p => esc(L(p.name))).join(', ') || T('nada', 'nothing')}.</p>` : ''}</div>
     <div class="a-actions">${st === 0 && o.status !== 'cancelada' ? `<button class="a-big-btn ghost" data-app-manage="${o.num}">${icon('calendar', 18)} ${T('Mudar o dia ou cancelar', 'Change the day or cancel')}</button>` : ''}
@@ -280,18 +299,20 @@ function contaSection(id) {
 }
 function partnerTab(u, idx) {
   PAGE = 'parceiro'; const s = partnerSections(u), pt = u.partner;
-  const pend = pt.approved ? '' : `<p class="note">${icon('clock', 22)}<span><b>${T('Pedido em análise pela equipa Daqui.', 'Application under review by the Daqui team.')}</b> ${T('Já pode preparar o seu perfil; fica visível depois da aprovação.', 'You can already prepare your profile; it becomes visible once approved.')}</span></p>`;
+  const pend = pt.approved && !pt.reply ? '' : partnerStatusNote(u);
   return wrapSite('parceiro', pend + idx.map(i => s[i] || '').join(''));
 }
 function myProposals(u) {
   const types = REQ_TYPES(), list = REQUESTS.filter(r => r.partnerUser === u.username || r.user === u.username).sort((a, b) => b.created.localeCompare(a.created));
-  return `<section class="acc-sec"><h2>${T('As minhas propostas e pedidos', 'My proposals and requests')}</h2>${list.length ? `<ul class="hlist mt-s">${list.map(r => `<li class="hrow"><span>${icon(r.type === 'produto' ? 'leaf' : r.type === 'colhe' ? 'calendar' : r.type === 'frio' ? 'snow' : 'inbox', 20)}</span><div><b>${types[r.type] || r.type}</b><br><span class="small muted">${esc(r.fields.namePt || r.fields.product || r.fields.date || r.fields.farm || r.fields.restaurant || '')} ${fdate(r.created)}</span></div>${reqStatus(r)}</li>`).join('')}</ul>` : `<p class="muted mt-s">${T('Ainda não fez propostas.', 'No proposals yet.')}</p>`}</section>`;
+  return `<section class="acc-sec"><h2>${T('As minhas propostas e pedidos', 'My proposals and requests')}</h2>${list.length ? `<ul class="hlist mt-s">${list.map(r => `<li class="hrow"><span>${icon(r.type === 'produto' ? 'leaf' : r.type === 'colhe' ? 'calendar' : r.type === 'frio' ? 'snow' : 'inbox', 20)}</span><div><b>${types[r.type] || r.type}</b><br><span class="small muted">${esc(r.fields.productId && P(r.fields.productId) ? L(P(r.fields.productId).name) : r.fields.namePt || (P(r.fields.product) ? L(P(r.fields.product).name) : r.fields.product) || (r.fields.date ? slotLabel(r.fields.date) : '') || r.fields.farm || r.fields.restaurant || '')}${r.fields.organic ? ` (${bioName(r.fields.organic === 'sim').toLowerCase()})` : ''} · ${fdate(r.created)}</span>${reqReply(r)}</div>${reqStatus(r)}</li>`).join('')}</ul>` : `<p class="muted mt-s">${T('Ainda não fez propostas.', 'No proposals yet.')}</p>`}</section>`;
 }
 function adminMais() {
   const kp = `<div class="kpis"><div><strong>${REQUESTS.filter(r => r.status === 'novo').length}</strong><span>${T('pedidos novos', 'new requests')}</span></div><div><strong>${ORDERS.filter(o => orderStage(o) < 3).length}</strong><span>${T('por entregar', 'to deliver')}</span></div><div><strong>${Object.values(USERS).flatMap(c => c.subs || []).filter(s => s.status === 'ativa').length}</strong><span>${T('subscrições', 'subscriptions')}</span></div><div><strong>${Object.values(USERS).filter(x => x.role !== 'admin').length}</strong><span>${T('contas', 'accounts')}</span></div></div>`;
-  const rows = [['#/g/caixas', 'box', T('Caixas e preços', 'Boxes and prices')], ['#/g/colhe', 'sprout', JTH()], ['#/g/subscricoes', 'repeat', T('Subscrições', 'Subscriptions')], ['#/g/contas', 'users', T('Contas', 'Accounts')], ['#/g/dados', 'app', NUVEM.on ? T('Base de dados', 'Database') : T('Guardar alterações', 'Save changes')]];
+  const nm = chatUnread();
+  const rows = [['#/g/mensagens', 'chat', T('Mensagens', 'Messages') + (nm ? ` <span class="count-in">${nm}</span>` : '')], ['#/g/caixas', 'box', T('Caixas e preços', 'Boxes and prices')], ['#/g/colhe', 'sprout', JTH()], ['#/g/subscricoes', 'repeat', T('Subscrições', 'Subscriptions')], ['#/g/contas', 'users', T('Contas', 'Accounts')], ['#/g/dados', 'app', NUVEM.on ? T('Base de dados', 'Database') : T('Guardar alterações', 'Save changes')]];
   return `<div class="a-pad">${NUVEM.badge()}${kp}<div class="a-menu">${rows.map(([h, ic, t]) => `<a class="a-row" href="${h}"><span class="a-row-ic">${icon(ic, 20)}</span><span><b>${t}</b></span>${icon('chevR', 18)}</a>`).join('')}</div>
-    <div class="a-menu"><div class="a-row"><span class="a-row-ic">${icon('globe', 20)}</span><span><b>${T('Língua', 'Language')}</b></span>${langToggle()}</div></div>
+    <div class="a-menu"><div class="a-row"><span class="a-row-ic">${icon('globe', 20)}</span><span><b>${T('Língua', 'Language')}</b></span>${langToggle()}</div>${NATIVO.pushAvailable() ? `<button class="a-row" data-push-on><span class="a-row-ic">${icon('bell', 20)}</span><span><b>${T('Notificações', 'Notifications')}</b><span class="muted small">${NATIVO.pushState === 'on' ? T('Ativas neste telemóvel', 'On for this phone') : T('Toque para ativar', 'Tap to turn on')}</span></span>${icon('chevR', 18)}</button>` : ''}</div>
+    ${appHelpRows(false)}
     <button class="a-big-btn ghost danger" data-logout>${icon('logout', 18)} ${T('Terminar sessão', 'Sign out')}</button></div>`;
 }
 function partnerConta(u, extra) {
@@ -299,6 +320,7 @@ function partnerConta(u, extra) {
     ${extra}${contaSection('dados')}
     <div class="a-menu"><div class="a-row"><span class="a-row-ic">${icon('globe', 20)}</span><span><b>${T('Língua', 'Language')}</b></span>${langToggle()}</div>${NATIVO.pushAvailable() ? `<button class="a-row" data-push-on><span class="a-row-ic">${icon('bell', 20)}</span><span><b>${T('Notificações', 'Notifications')}</b><span class="muted small">${NATIVO.pushState === 'on' ? T('Ativas neste telemóvel', 'On for this phone') : T('Toque para ativar', 'Tap to turn on')}</span></span>${icon('chevR', 18)}</button>` : ''}
       <a class="a-row" href="#/conta/encomendas"><span class="a-row-ic">${icon('box', 20)}</span><span><b>${T('Encomendas', 'Orders')}</b></span>${icon('chevR', 18)}</a></div>
+    ${appHelpRows()}
     <button class="a-big-btn ghost danger" data-logout>${icon('logout', 18)} ${T('Terminar sessão', 'Sign out')}</button>`;
 }
 
@@ -316,6 +338,7 @@ function appScreen(path, u) {
   if (a === 'conta' && b === 'encomendas') return scrEncomendas(u);
   if (a === 'conta') { if (!u) return { redirect: 'entrar?next=conta' }; BACK = /^subscricao\/[a-z0-9-]+$/.test(QS.get('voltar') || '') ? QS.get('voltar') : ''; const names = { subscricoes: T('Subscrições', 'Subscriptions'), preferencias: T('Favoritos e exclusões', 'Favourites and exclusions'), colhe: JTH(), dados: T('Dados e morada', 'Details and address') };
     return { title: names[b] || T('Conta', 'Account'), back: true, html: `<div class="a-pad">${contaSection(b) || ''}</div>` }; }
+  if (a === 'mensagens') return role === 'admin' ? { redirect: 'g/mensagens' } : scrMensagens(u);
   if (a === 'encomenda') return scrEncomenda(b, u);
   if (a === 'incidencia') return scrIncidencia(b);
   if (a === 'caixas') { const o = sitePage('subscricao'); return { title: T('Caixas da Estação', 'Seasonal boxes'), back: true, fab: true, html: o.html, after: o.after }; }
@@ -337,7 +360,7 @@ function appScreen(path, u) {
   /* gestão: as funções do painel do site (js/pages-gestao.js) */
   if (a === 'g') {
     PAGE = 'conta';
-    const map = { pedidos: [tabPedidos, T('Pedidos', 'Requests')], encomendas: [tabEncomendas, T('Encomendas', 'Orders')], catalogo: [tabCatalogo, T('Catálogo', 'Catalogue')], caixas: [tabCaixas, T('Caixas e preços', 'Boxes and prices')],
+    const map = { pedidos: [tabPedidos, T('Pedidos', 'Requests')], mensagens: [tabMensagens, T('Mensagens', 'Messages')], encomendas: [tabEncomendas, T('Encomendas', 'Orders')], catalogo: [tabCatalogo, T('Catálogo', 'Catalogue')], caixas: [tabCaixas, T('Caixas e preços', 'Boxes and prices')],
       colhe: [tabColhe, JTH()], subscricoes: [tabSubs, T('Subscrições', 'Subscriptions')], contas: [tabContas, T('Contas', 'Accounts')], dados: [tabExportar, NUVEM.on ? T('Base de dados', 'Database') : T('Guardar alterações', 'Save changes')] };
     if (b === 'mais') return { title: T('Gestão', 'Management'), html: adminMais() };
     const [fn, title] = map[b] || map.pedidos;
@@ -358,10 +381,10 @@ render = function appRender() {
   const scr = appScreen(path, u);
   if (scr.redirect) { appReplace('#/' + scr.redirect); return; }
   const role = roleOf(u), tabs = TABS()[role], act = activeTab(path, role);
-  const count = cart.reduce((n, i) => n + i.qty, 0), newReq = role === 'admin' ? REQUESTS.filter(r => r.status === 'novo').length : 0;
+  const count = itemCount(cart), newReq = role === 'admin' ? REQUESTS.filter(r => r.status === 'novo').length : 0, newMsg = role === 'admin' ? chatUnread() : 0;
   const bar = scr.bare || scr.hero || scr.noBar ? '' : `<header class="a-bar"><div class="a-bar-in">${scr.back ? `<button class="a-bar-btn" data-app-back aria-label="${T('Voltar', 'Back')}">${icon('chevL', 26)}</button>` : `<img class="a-bar-logo" src="${LOGO_GOLD}" alt="Daqui">`}
     <h1 class="a-bar-title">${scr.title}</h1>${role === 'admin' && path.startsWith('g/') ? `<button class="a-bar-btn" data-app-refresh aria-label="${T('Atualizar', 'Refresh')}">${icon('repeat', 22)}</button>` : ''}</div></header>`;
-  const nav = scr.bare ? '' : `<nav class="a-tabs" aria-label="${T('Secções', 'Sections')}">${tabs.map(([r, ic, n]) => `<a href="#/${r}"${act === r ? ' aria-current="page"' : ''}>${icon(ic, 24)}<span>${n}</span>${r === 'g/pedidos' && newReq ? `<i class="a-dot">${newReq}</i>` : ''}</a>`).join('')}</nav>`;
+  const nav = scr.bare ? '' : `<nav class="a-tabs" aria-label="${T('Secções', 'Sections')}">${tabs.map(([r, ic, n]) => `<a href="#/${r}"${act === r ? ' aria-current="page"' : ''}>${icon(ic, 24)}<span>${n}</span>${r === 'g/pedidos' && newReq ? `<i class="a-dot">${newReq}</i>` : ''}${r === 'g/mais' && newMsg ? `<i class="a-dot">${newMsg}</i>` : ''}</a>`).join('')}</nav>`;
   const fab = scr.fab && role !== 'admin' && role !== 'agricultor' ? `<button class="a-fab" data-cart-open aria-label="${T('Abrir cabaz', 'Open basket')}, ${count} ${T('artigos', 'items')}">${icon('basket', 26)}${count ? `<span class="count">${count}</span>` : ''}</button>` : '';
   $('#app').innerHTML = `${NUVEM.banner()}${bar}<main id="main" class="a-main${scr.hero ? ' has-hero' : ''}${scr.noBar ? ' no-bar' : ''}${scr.bare ? ' bare' : ''}" tabindex="-1">${scr.html}</main>${fab}${nav}`;
   document.title = `Daqui | ${String(scr.title).replace(/<[^>]+>/g, '')}`;
@@ -410,10 +433,11 @@ PAGE_EVENTS.click.push((e, t, d) => {
   if (d.mapa) { mapaV = d.mapa; history.replaceState(null, '', '#/mapa?v=' + d.mapa); render(); return true; }
   if ('appLocate' in d) { askPosition(); return true; }
   if (d.detSize) { detSize = d.detSize; rerenderKeep(`[data-det-size="${d.detSize}"]`); return true; }
-  if (d.detQty) { detQty = Math.max(1, Math.min(20, detQty + +d.detQty)); rerenderKeep(`[data-det-qty="${d.detQty}"]`); return true; }
-  if (d.detAdd) { const p = P(d.detAdd); addToCart(p.id, p.cat === 'caixas' ? { size: detSize } : {}, detQty); detQty = 1; const f = $('.a-fab'); if (f) { f.classList.remove('bump'); void f.offsetWidth; f.classList.add('bump'); } return true; }
+  if (d.detQty) { const st = qtyStep(P(detFor)); detQty = Math.max(st, Math.min(st * 40, round2(detQty + +d.detQty * st))); rerenderKeep(`[data-det-qty="${d.detQty}"]`); return true; }
+  if (d.detBio) { detBio = d.detBio === '1'; rerenderKeep(`[data-det-bio="${d.detBio}"]`); return true; }
+  if (d.detAdd) { const p = P(d.detAdd); addToCart(p.id, p.cat === 'caixas' ? { size: detSize } : { bio: detBio }, detQty); detQty = 1; const f = $('.a-fab'); if (f) { f.classList.remove('bump'); void f.offsetWidth; f.classList.add('bump'); } return true; }
   if (d.appManage) { showOrder('order', findOrder(d.appManage), false); return true; }
-  if (d.appReorder) { const o = findOrder(d.appReorder); o.items.forEach(i => { const p = P(i.id); if (p && (available(p) || p.cat === 'caixas')) addToCart(i.id, i.size ? { size: i.size } : {}, i.qty); }); openCart(); return true; }
+  if (d.appReorder) { const o = findOrder(d.appReorder); o.items.forEach(i => { const p = P(i.id); if (p && (available(p) || p.cat === 'caixas')) addToCart(i.id, i.size ? { size: i.size } : { bio: !!i.bio }, i.qty); }); openCart(); return true; }
   if ('swipeKnob' in d && e.detail === 0) { confirmPickup(d.swipeKnob); return true; }   // teclado: Enter/Espaço no botão
   if ('photoTake' in d) { NATIVO.photo(d.photoTake).then(blob => { if (blob) setPhoto(blob); }).catch(err => { if (!/cancel/i.test(String(err))) toast(T('Não foi possível usar a câmara.', 'The camera could not be used.')); }); return true; }
   if ('photoRm' in d) { setPhoto(null); return true; }
@@ -456,7 +480,7 @@ document.addEventListener('pointerdown', e => {
 document.addEventListener('DOMContentLoaded', () => {
   $('#drawer').setAttribute('inert', '');
   $('#app').innerHTML = `<div class="loading-page" role="status"><img src="${LOGO_GOLD}" alt="Daqui" width="140"><p>${T('A carregar…', 'Loading…')}</p></div>`;
-  const first = () => { APP_READY = true; render(); NATIVO.ready(); };
+  const first = () => { APP_READY = true; render(); window.__daquiPronto = true; const f = document.querySelector('#daqui-falha[data-tipo="espera"]'); if (f) f.remove(); NATIVO.ready(); };
   (NUVEM.configured ? NUVEM.start() : Promise.resolve()).then(first, first);
   if ('serviceWorker' in navigator && !NATIVO.isNative && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 });

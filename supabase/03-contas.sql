@@ -1,6 +1,6 @@
 -- =====================================================================================
 -- Daqui — 3 de 3: CONTAS DE DEMONSTRAÇÃO e atividade de exemplo
--- Gerado por ferramentas/gerar-sql.js em 2026-11-16 05:52. Não edite à mão: mude js/data.js e volte a gerar.
+-- Gerado por ferramentas/gerar-sql.js em 2026-11-16 18:20. Não edite à mão: mude js/data.js e volte a gerar.
 -- Onde: Supabase → SQL Editor → New query → colar este ficheiro inteiro → Run.
 -- =====================================================================================
 -- Cria 27 contas (palavras-passe abaixo), com o perfil, as subscrições, as inscrições no Colhe Connosco,
@@ -141,7 +141,10 @@ insert into public.pedidos (id, tipo, criado, estado, user_id, username, parceir
   values ('P-1003', 'agricultor', now() - interval '1 days', 'novo', null, null, null, null, '{"name":"Carla Matos","phone":"965432100","town":"Sever do Vouga","area":"1-5","crops":"Mirtilo, kiwi"}'::jsonb)
   on conflict (id) do nothing;
 insert into public.pedidos (id, tipo, criado, estado, user_id, username, parceiro, encomenda, campos)
-  values ('P-1004', 'produto', now() - interval '1 days', 'novo', (select id from public.perfis where username = 'agr.joaquim'), 'agr.joaquim', 'agr.joaquim', null, '{"namePt":"Pera Rocha biológica","nameEn":"Organic Rocha pear","cat":"fruta","price":"2.49","unit":"kg","season":"8-4","desc":"Pequena produção em modo biológico."}'::jsonb)
+  values ('P-1004', 'produto', now() - interval '1 days', 'novo', (select id from public.perfis where username = 'agr.joaquim'), 'agr.joaquim', 'agr.joaquim', null, '{"productId":"pera-rocha","namePt":"Pera Rocha do Oeste","nameEn":"Rocha pear from the Oeste","organic":"sim"}'::jsonb)
+  on conflict (id) do nothing;
+insert into public.pedidos (id, tipo, criado, estado, user_id, username, parceiro, encomenda, campos)
+  values ('P-1005', 'produto', now() - interval '1 days', 'novo', (select id from public.perfis where username = 'agr.ines'), 'agr.ines', 'agr.ines', null, '{"namePt":"Batata-doce biológica","nameEn":"Organic sweet potato","cat":"legumes","price":"1.99","unit":"kg","season":"9-3","desc":"Da Horta Viva, em Mira.","organic":"sim"}'::jsonb)
   on conflict (id) do nothing;
 
 drop function public.daqui_criar_conta(text, text, text, text, text, jsonb, jsonb);

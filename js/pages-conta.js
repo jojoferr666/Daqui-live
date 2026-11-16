@@ -123,8 +123,19 @@ PAGES.conta = () => {
         <p class="small muted">${T('Feita a', 'Placed on')} ${fdate(o.created, { day: 'numeric', month: 'long', year: 'numeric' })}. ${o.deliver === 'home' ? T('Entrega', 'Delivery') : T('Levantamento', 'Pick-up')}: ${slotLabel(o.slot)}.</p>
         <p class="small">${esc(names.slice(0, 4).join(', '))}${names.length > 4 ? ` ${T('e mais', 'and')} ${names.length - 4}` : ''}</p></div>
       <div class="oc-side"><b>${money(o.total)}</b><a class="btn btn-line btn-sm c-campo" href="${href('contacto', 'encomenda=' + o.num)}">${T('Seguir', 'Track')}</a><button class="link small" data-reorder="${o.num}">${T('Repetir encomenda', 'Order again')}</button></div></article>`; };
-  const harvRows = (u.harvests || []).slice().sort((a, b) => a.date.localeCompare(b.date)).map(h => { const dd = HARVEST_DAYS.find(x => x.date === h.date); if (!dd) return ''; const f = F(dd.farmer);
-    return `<li class="hrow"><div class="date sm"><b>${fdate(dd.date, { day: 'numeric' })}</b><span>${fdate(dd.date, { month: 'short' })}</span></div><div><b>${esc(L(dd.what))}</b><br><span class="small muted">${esc(f.farm)}, ${esc(f.place)}. ${dd.time}. ${h.people} ${h.people > 1 ? T('pessoas', 'people') : T('pessoa', 'person')}.</span></div><button class="link" data-harv-cancel="${dd.date}">${T('Cancelar', 'Cancel')}</button></li>`; }).join('');
+  /* Colhe Connosco: inscrições, avaliação (abre no início do dia e fecha 48 h depois do fim) e registo da colheita feito pela equipa */
+  const harvRow = h => { const dd = HARVEST_DAYS.find(x => x.date === h.date); if (!dd) return ''; const f = F(dd.farmer) || { farm: dd.farmer, place: '' }, started = harvestStarted(dd), open = harvestRateOpen(dd), rec = h.record;
+    const rate = !started ? '' : open ? `<form class="rate-form mt-s" data-rate-form="${dd.date}"><fieldset class="plain"><legend class="small"><b>${h.rating ? T('A sua avaliação (pode alterar até', 'Your review (you can change it until') : T('Como correu? Avalie até', 'How did it go? Review it until')} ${fdate(harvestWindow(dd).close, { weekday: 'long', hour: '2-digit', minute: '2-digit' })}${h.rating ? ')' : ''}</b></legend>
+        <div class="star-pick">${[5, 4, 3, 2, 1].map(n => `<input type="radio" id="rt-${dd.date}-${n}" name="rt-${dd.date}" value="${n}"${+h.rating === n ? ' checked' : ''}><label for="rt-${dd.date}-${n}" title="${n}">★<span class="sr">${n} ${T('estrelas', 'stars')}</span></label>`).join('')}</div></fieldset>
+        <label class="sr" for="rc-${dd.date}">${T('Comentário', 'Comment')}</label><textarea id="rc-${dd.date}" rows="2" placeholder="${T('Conte como foi (opcional)', 'Tell us how it went (optional)')}">${esc(h.comment || '')}</textarea>
+        <p class="err" hidden></p><button class="btn btn-green btn-sm" type="submit">${h.rating ? T('Atualizar avaliação', 'Update review') : T('Enviar avaliação', 'Send review')}</button></form>`
+      : h.rating ? `<p class="small mt-s">${T('A sua avaliação', 'Your review')}: ${stars(+h.rating)}${h.comment ? ` «${esc(h.comment)}»` : ''}</p>` : `<p class="small muted mt-s">${T('As avaliações deste dia já fecharam.', 'Reviews for this day are closed.')}</p>`;
+    return `<li class="hrow"><div class="date sm"><b>${fdate(dd.date, { day: 'numeric' })}</b><span>${fdate(dd.date, { month: 'short' })}</span></div><div><b>${esc(L(dd.what))}</b>${started && !harvestPast(dd) ? ` <span class="status prog">${T('A decorrer', 'In progress')}</span>` : ''}<br><span class="small muted">${esc(f.farm)}${f.place ? ', ' + esc(f.place) : ''}. ${dd.time}. ${h.people} ${h.people > 1 ? T('pessoas', 'people') : T('pessoa', 'person')}.</span>
+      ${rec ? `<p class="note done small mt-s">${icon('leaf', 20)}<span><b>${T('Registo da colheita', 'Harvest record')}:</b> ${rec.kg != null ? `${numFmt(rec.kg)} kg ${T('de', 'of')} ${esc(L(dd.what).toLowerCase())}` : ''}${rec.note ? `${rec.kg != null ? '. ' : ''}${esc(rec.note)}` : ''}</span></p>` : ''}${rate}</div>
+      ${started ? '' : `<button class="link" data-harv-cancel="${dd.date}">${T('Cancelar', 'Cancel')}</button>`}</li>`; };
+  const harvAll = (u.harvests || []).slice(), harvNext = harvAll.filter(h => { const dd = HARVEST_DAYS.find(x => x.date === h.date); return dd && !harvestStarted(dd); }).sort((a, b) => a.date.localeCompare(b.date)),
+    harvDone = harvAll.filter(h => { const dd = HARVEST_DAYS.find(x => x.date === h.date); return dd && harvestStarted(dd); }).sort((a, b) => b.date.localeCompare(a.date));
+  const harvRows = harvNext.map(harvRow).join('') + (harvDone.length ? `</ul><h3 class="mt">${T('Dias em que participou', 'Days you joined')}</h3><ul class="hlist mt-s">${harvDone.map(harvRow).join('')}` : '');
   const notif = (u.notify || []).map(P).filter(Boolean), favs = (u.favs || []).map(P).filter(Boolean), excl = (u.exclude || []).map(P).filter(Boolean);
   const prodOptions = keep => ['fruta', 'legumes'].map(c => `<optgroup label="${catName(c)}">${PRODUCTS.filter(p => p.cat === c && keep(p)).sort((a, b) => L(a.name).localeCompare(L(b.name))).map(p => `<option value="${p.id}">${esc(L(p.name))}</option>`).join('')}</optgroup>`).join('');
   const addr = u.address;
@@ -136,7 +147,7 @@ PAGES.conta = () => {
   <div class="wrap account">
     ${nova ? `<p class="note done" role="status">${icon('check', 22)}<span><b>${T('Subscrição confirmada', 'Subscription confirmed')}: ${esc(L(P(nova.box).name))}.</b> ${T('Primeira entrega', 'First delivery')}: ${slotLabel(nova.first)}. ${T('Preço guardado durante 12 meses.', 'Price saved for 12 months.')}</span></p>` : ''}
     ${u.role === 'admin' ? adminPanel() : `
-    <nav class="acc-nav" aria-label="${T('Secções da conta', 'Account sections')}">${[['encomendas', T('Encomendas', 'Orders')], ['subscricoes', T('Subscrições', 'Subscriptions')], ['colhe', JTH()], ['preferencias', T('Favoritos e exclusões', 'Favourites and exclusions')], ['dados', T('Dados e morada', 'Details and address')]].map(([k, n]) => `<a class="chip" href="#${k}">${n}</a>`).join('')}</nav>
+    <nav class="acc-nav" aria-label="${T('Secções da conta', 'Account sections')}">${[['encomendas', T('Encomendas', 'Orders')], ['subscricoes', T('Subscrições', 'Subscriptions')], ['colhe', JTH()], ['preferencias', T('Favoritos e exclusões', 'Favourites and exclusions')], ['dados', T('Dados e morada', 'Details and address')]].map(([k, n]) => `<a class="chip" href="#${k}">${n}</a>`).join('')}<button class="chip" data-chat-open>${icon('chat', 16)} ${T('Falar com a Daqui', 'Talk to Daqui')}</button></nav>
     <section class="acc-sec" id="encomendas"><div class="row-between mb-s"><h2>${T('Histórico de encomendas', 'Order history')}</h2><a class="btn btn-green btn-sm" href="${href('produtos')}">${T('Nova encomenda', 'New order')}</a></div>
       ${myOrders.length ? myOrders.map(orderCard).join('') : `<p class="muted">${T('Ainda não fez nenhuma encomenda com esta conta.', 'You haven\'t placed any orders with this account yet.')}</p>`}</section>
     <section class="acc-sec" id="subscricoes"><div class="row-between mb-s"><h2>${T('As minhas subscrições', 'My subscriptions')}</h2><a class="btn btn-green btn-sm" href="${href('subscricao')}">${T('Nova subscrição', 'New subscription')}</a></div>
@@ -184,12 +195,22 @@ PAGE_EVENTS.click.push((e, t, d) => {
   if (d.exclRm) { u.exclude = (u.exclude || []).filter(x => x !== d.exclRm); saveUsers(); rerenderKeep('#excl-add'); return true; }
   if ('exclAdd' in d) { const id = $('#excl-add').value; if (id) { u.exclude = [...(u.exclude || []), id]; u.favs = (u.favs || []).filter(x => x !== id); saveUsers(); toast(T(`Não vai receber: ${L(P(id).name)}`, `You won't get: ${L(P(id).name)}`)); rerenderKeep('#excl-add'); } return true; }
   if ('favAdd' in d) { const id = $('#fav-add').value; if (id) { u.favs = [...(u.favs || []), id]; u.exclude = (u.exclude || []).filter(x => x !== id); saveUsers(); toast(T(`Adicionado aos favoritos: ${L(P(id).name)}`, `Added to favourites: ${L(P(id).name)}`)); rerenderKeep('#fav-add'); } return true; }
-  if (d.reorder) { const o = findOrder(d.reorder); o.items.forEach(i => { if (P(i.id) && (inSeason(P(i.id)) || P(i.id).cat === 'caixas')) addToCart(i.id, i.size ? { size: i.size } : {}, i.qty); }); openCart(); return true; }
+  if (d.reorder) { const o = findOrder(d.reorder); o.items.forEach(i => { if (P(i.id) && (inSeason(P(i.id)) || P(i.id).cat === 'caixas')) addToCart(i.id, i.size ? { size: i.size } : { bio: !!i.bio }, i.qty); }); openCart(); return true; }
   if ('addrRm' in d) { u.address = null; saveUsers(); toast(T('Morada apagada', 'Address deleted')); rerenderKeep(); return true; }
 });
 PAGE_EVENTS.change.push((e, t) => {
   if (PAGE !== 'conta' || !t.dataset.subFreq) return; const u = currentUser(); const s = (u.subs || []).find(x => x.id === t.dataset.subFreq);
   s.freq = t.value; saveUsers(); toast(T('Frequência alterada', 'Frequency updated')); rerenderKeep(`[data-sub-freq="${s.id}"]`);
+});
+PAGE_EVENTS.submit.push((e, f) => {
+  if (!f.matches('[data-rate-form]')) return; e.preventDefault();
+  const u = currentUser(), date = f.dataset.rateForm, h = u && (u.harvests || []).find(x => x.date === date), dd = HARVEST_DAYS.find(x => x.date === date);
+  if (!h || !dd) return true;
+  const err = $('.err', f), v = +($(`input[name="rt-${date}"]:checked`, f) || {}).value;
+  if (!harvestRateOpen(dd)) { err.hidden = false; err.textContent = T('As avaliações deste dia já fecharam.', 'Reviews for this day are closed.'); return true; }
+  if (!v) { err.hidden = false; err.textContent = T('Escolha de 1 a 5 estrelas.', 'Choose 1 to 5 stars.'); return true; }
+  h.rating = v; h.comment = $(`#rc-${date}`, f).value.trim().slice(0, 600); h.ratedAt = nowISO(); saveUsers();
+  toast(T('Obrigado pela avaliação!', 'Thank you for your review!')); rerenderKeep(); return true;
 });
 PAGE_EVENTS.submit.push((e, f) => {
   if (!f.matches('[data-addr-form]')) return; e.preventDefault(); if (!validate(f)) return true;

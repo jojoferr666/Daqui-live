@@ -17,7 +17,7 @@ const NUVEM = (() => {
   const KEY = (typeof SUPABASE_KEY === 'string' ? SUPABASE_KEY : '').trim();
   const POLL = Math.max(5, +(typeof SUPABASE_ATUALIZAR_SEGUNDOS !== 'undefined' ? SUPABASE_ATUALIZAR_SEGUNDOS : 30) || 30) * 1000;
   const SESS_KEY = 'daqui-nuvem-sessao', GUEST_KEY = 'daqui-encomendas-visitante';
-  const TABLES = ['produtos', 'agricultores', 'restaurantes', 'dias_colhe', 'caixas_precos', 'perfis', 'subscricoes', 'inscricoes_colhe', 'encomendas', 'pedidos'];
+  const TABLES = ['produtos', 'agricultores', 'restaurantes', 'dias_colhe', 'caixas_precos', 'perfis', 'subscricoes', 'inscricoes_colhe', 'encomendas', 'pedidos', 'mensagens'];
   const CATALOG_TABLES = TABLES.slice(0, 5);
   const N = { on: false, configured: /^https?:\/\//.test(BASE) && KEY.length > 20, live: false, error: '', failed: false };
   let sess = null, me = null, ocup = {}, ownAtLoad = {}, snap = {}, chain = Promise.resolve();
@@ -70,15 +70,20 @@ const NUVEM = (() => {
     if (r.icone) p.icon = r.icone;
     if (r.fora_stock) p.outOfStock = true;
     if (Array.isArray(r.divisao)) p.split = r.divisao;
+    if (Array.isArray(r.produtores) && r.produtores.length) p.producers = r.produtores.map(o => ({ farmer: o.farmer, organic: !!o.organic, outOfStock: !!o.outOfStock }));
+    if (Array.isArray(r.aliases) && r.aliases.length) p.aliases = r.aliases;
     if (!BASE_IDS.p.has(r.id)) p.isNew = true;
     return p;
   };
+  const offersRow = v => (Array.isArray(v) && v.length ? v.map(o => ({ farmer: o.farmer, organic: !!o.organic, outOfStock: !!o.outOfStock })) : null);
   const fromProd = (p, ordem) => ({ id: p.id, categoria: p.cat, nome_pt: p.name.pt, nome_en: p.name.en || p.name.pt, preco: +p.price, unidade: p.unit || 'kg', agricultor: p.farmer || null,
     desenho: p.art || null, icone: p.icon || null, epoca_inicio: p.season[0], epoca_fim: p.season[1], colheita: p.harvest == null ? null : String(p.harvest),
-    essencial: !!p.essential, biologico: !!p.organic, fora_stock: !!p.outOfStock, divisao: p.split || null, desc_pt: (p.desc || {}).pt || '', desc_en: (p.desc || {}).en || '', ordem });
+    essencial: !!p.essential, biologico: !!p.organic, fora_stock: !!p.outOfStock, divisao: p.split || null, desc_pt: (p.desc || {}).pt || '', desc_en: (p.desc || {}).en || '', ordem,
+    produtores: offersRow(p.producers) || (p.farmer ? [{ farmer: p.farmer, organic: !!p.organic, outOfStock: !!p.outOfStock }] : []), aliases: p.aliases || [] });
   const PROD_PATCH = { price: v => ({ preco: +v }), season: v => ({ epoca_inicio: v[0], epoca_fim: v[1] }), split: v => ({ divisao: v || null }), outOfStock: v => ({ fora_stock: !!v }),
     name: v => ({ nome_pt: v.pt, nome_en: v.en }), desc: v => ({ desc_pt: v.pt, desc_en: v.en }), unit: v => ({ unidade: v }), farmer: v => ({ agricultor: v }), icon: v => ({ icone: v || null }),
-    essential: v => ({ essencial: !!v }), organic: v => ({ biologico: !!v }), harvest: v => ({ colheita: v == null ? null : String(v) }), art: v => ({ desenho: v || null }), cat: v => ({ categoria: v }) };
+    essential: v => ({ essencial: !!v }), organic: v => ({ biologico: !!v }), harvest: v => ({ colheita: v == null ? null : String(v) }), art: v => ({ desenho: v || null }), cat: v => ({ categoria: v }),
+    producers: v => ({ produtores: offersRow(v) || [] }), aliases: v => ({ aliases: v || [] }) };
   const toFarmer = r => Object.assign({}, r.extra || {}, { id: r.id, name: r.nome, farm: r.quinta, place: r.localidade, region: r.regiao, lat: r.lat, lon: r.lon, since: r.desde,
     crop: r.cultura, seed: r.semente, story: { pt: r.historia_pt || '', en: r.historia_en || '' } }, BASE_IDS.f.has(r.id) ? {} : { isNew: true });
   const fromFarmer = (f, ordem) => ({ id: f.id, nome: f.name, quinta: f.farm, localidade: f.place || '', regiao: f.region || 'aveiro', lat: f.lat, lon: f.lon, desde: f.since || null,
@@ -101,7 +106,10 @@ const NUVEM = (() => {
     descoberta: !!s.discovery, pagamento: s.pay || null, preco_guardado: +s.locked, inicio: s.start, primeira: s.first, estado: s.status || 'ativa', baixou: !!s.lowered });
   const toUser = (p, subs, harv) => ({ _id: p.id, name: p.nome, username: p.username, phone: p.telemovel || '', email: p.email || '', role: p.papel, created: p.criado,
     address: p.morada || null, favs: p.favoritos || [], exclude: p.excluidos || [], notify: p.avisos || [], partner: p.parceiro || null,
-    subs: subs.map(toSub), harvests: harv.map(h => ({ date: h.dia, people: h.pessoas })) });
+    subs: subs.map(toSub), harvests: harv.map(toHarv) });
+  /* inscrição Colhe Connosco: pessoas, avaliação do cliente e registo da colheita feito pela gestão */
+  const toHarv = h => { const x = { date: h.dia, people: h.pessoas }; if (h.avaliacao) { x.rating = h.avaliacao; x.comment = h.comentario || ''; x.ratedAt = h.avaliado; } if (h.registo) x.record = h.registo; return x; };
+  const harvRow = h => ({ pessoas: +h.people || 1, avaliacao: h.rating ? +h.rating : null, comentario: h.rating ? h.comment || '' : null, registo: h.record || null });
   const fromUser = u => ({ telemovel: u.phone || null, nome: u.name, email: u.email || null, morada: u.address || null, favoritos: u.favs || [], excluidos: u.exclude || [], avisos: u.notify || [],
     parceiro: u.partner || null, papel: u.role });
   const uidOf = un => (un && USERS[un] ? USERS[un]._id : null);
@@ -119,10 +127,11 @@ const NUVEM = (() => {
   const toReq = r => {
     const x = { id: r.id, type: r.tipo, created: r.criado, status: r.estado, user: r.username || null, fields: r.campos || {} };
     if (r.parceiro) x.partnerUser = r.parceiro; if (r.encomenda) x.order = r.encomenda; if (r.aprovado) x.approved = true; if (r.produto_id) x.productId = r.produto_id; if (r.user_id) x._uid = r.user_id;
+    if (r.decisao) x.decision = r.decisao; if (r.resposta) x.reply = r.resposta; if (r.decidido) x.decidedAt = r.decidido;
     return x;
   };
   const fromReq = r => ({ id: r.id, tipo: r.type, criado: r.created, estado: r.status, user_id: r._uid || uidOf(r.user), username: r.user || null, parceiro: r.partnerUser || null,
-    encomenda: r.order || null, aprovado: !!r.approved, produto_id: r.productId || null, campos: r.fields || {} });
+    encomenda: r.order || null, aprovado: !!r.approved, produto_id: r.productId || null, campos: r.fields || {}, decisao: r.decision || null, resposta: r.reply || null, decidido: r.decidedAt || null });
   const diff = (prev, row) => { const d = {}; for (const k of Object.keys(row)) if (J(row[k]) !== J(prev[k])) d[k] = row[k]; return Object.keys(d).length ? d : null; };
   const fill = (arr, items) => { arr.length = 0; items.forEach(x => arr.push(x)); };
 
@@ -161,7 +170,7 @@ const NUVEM = (() => {
     Object.values(USERS).forEach(u => {
       snap['u:' + u._id] = J(fromUser(u));
       u.subs.forEach(s => { snap['s:' + s.id] = J(fromSub(s, u._id)); });
-      u.harvests.forEach(h => { snap[`h:${u._id}|${h.date}`] = J({ pessoas: +h.people }); });
+      u.harvests.forEach(h => { snap[`h:${u._id}|${h.date}`] = J(harvRow(h)); });
     });
     if (me) store.set(SESSION_KEY, me.username); else store.del(SESSION_KEY);
     ownAtLoad = {}; if (me && USERS[me.username]) USERS[me.username].harvests.forEach(h => { ownAtLoad[h.date] = +h.people; });
@@ -170,6 +179,18 @@ const NUVEM = (() => {
     ORDERS.forEach(o => { snap['o:' + o.num] = J(fromOrder(o)); });
     fill(REQUESTS, reqs.map(toReq));
     REQUESTS.forEach(r => { snap['r:' + r.id] = J(fromReq(r)); });
+    await loadMsgs();
+    N.farmerHarvest = null;
+    if (me && me.papel === 'agricultor') { try { N.farmerHarvest = Object.fromEntries((await rpc('colhe_resumo_agricultor', {}) || []).map(x => [x.dia, { people: +x.pessoas || 0, n: +x.n || 0, avg: +x.media || 0, kg: +x.kg || 0, comments: x.comentarios || [] }])); } catch (e) { console.warn(e); } }
+  }
+  /* mensagens ("Falar com a Daqui"): a gestão vê todas; cada conta vê as suas; sem conta, as da conversa guardada neste navegador */
+  const toMsg = r => ({ id: r.id, conv: r.conversa, user: (Object.values(USERS).find(u => u._id === r.user_id) || {}).username || null, name: r.nome || '', contact: r.contacto || '', from: r.autor, text: r.texto, at: r.criada, read: !!r.lida });
+  async function loadMsgs() {
+    if (typeof MESSAGES === 'undefined') return;
+    let rows = [];
+    if (sess) rows = await rest('GET', 'mensagens', 'select=*&order=criada.asc&limit=2000');
+    else { const c = store.get('daqui-conversa', ''); if (c) rows = await rpc('mensagens_convidado', { p_conversa: c }) || []; }
+    fill(MESSAGES, rows.map(toMsg));
   }
   async function loadGuestOrders() {
     for (const g of guestOrders().slice(0, 5)) { if (ORDERS.some(o => o.num === g.num && !o._tel)) continue; try { await lookupOrder(g.num, g.phone); } catch (e) {} }
@@ -210,9 +231,10 @@ const NUVEM = (() => {
       }
       const hs = u.harvests || [], pre = `h:${u._id}|`;
       for (const h of hs) {
-        const hk = pre + h.date, r = { pessoas: +h.people || 1 };
-        if (!snap[hk]) { await rest('POST', 'inscricoes_colhe', '', { user_id: u._id, dia: h.date, pessoas: r.pessoas }, 'return=minimal'); snap[hk] = J(r); }
-        else if (snap[hk] !== J(r)) { await rest('PATCH', 'inscricoes_colhe', `user_id=${eq(u._id)}&dia=${eq(h.date)}`, r, 'return=minimal'); snap[hk] = J(r); }
+        const hk = pre + h.date, r = harvRow(h);
+        if (!snap[hk]) { await rest('POST', 'inscricoes_colhe', '', { user_id: u._id, dia: h.date, pessoas: r.pessoas }, 'return=minimal'); snap[hk] = J({ pessoas: r.pessoas, avaliacao: null, comentario: null, registo: null }); }
+        const d = diff(JSON.parse(snap[hk]), r);
+        if (d) { await rest('PATCH', 'inscricoes_colhe', `user_id=${eq(u._id)}&dia=${eq(h.date)}`, d, 'return=minimal'); snap[hk] = J(r); }
       }
       for (const hk of Object.keys(snap)) if (hk.startsWith(pre) && !hs.some(h => pre + h.date === hk)) {
         await rest('DELETE', 'inscricoes_colhe', `user_id=${eq(u._id)}&dia=${eq(hk.slice(pre.length))}`, undefined, 'return=minimal'); delete snap[hk];
@@ -298,6 +320,23 @@ const NUVEM = (() => {
   N.registerDevice = (token, platform) => (sess ? rpc('registar_dispositivo', { p_token: token, p_plataforma: platform || 'android', p_lingua: lang }) : Promise.resolve());
   N.unregisterDevice = token => (sess ? rpc('remover_dispositivo', { p_token: token }).catch(() => {}) : Promise.resolve());
   N.hasSession = () => !!sess;
+  N.loadMessages = () => queue(loadMsgs, true);
+  N.sendMessage = (m, owner) => queue(async () => {
+    if (sess) {
+      const row = { conversa: m.conv, user_id: m.from === 'gestao' ? (owner && owner._id) || null : sess.user_id, nome: m.name || null, contacto: m.contact || null, autor: m.from, texto: m.text };
+      const r = await rest('POST', 'mensagens', '', row, 'return=representation'); if (Array.isArray(r) && r[0]) { m.id = r[0].id; m.at = r[0].criada; }
+    } else await rpc('enviar_mensagem_convidado', { p_conversa: m.conv, p_nome: m.name || '', p_contacto: m.contact || '', p_texto: m.text });
+  });
+  N.markRead = conv => queue(() => rpc('marcar_lidas', { p_conversa: conv }), true);
+  /* agricultor: stock da sua parte de um produto (pode haver vários produtores) */
+  N.setStock = (id, out) => queue(() => rpc('definir_stock', { p_produto: id, p_fora: !!out })).then(() => reloadSoon(true, false));
+  /* agricultor (ou gestão): editar um dia Colhe Connosco antes de começar; as inscrições mudam com ele */
+  N.editHarvestDay = (old, d) => {
+    delete snap['d:' + old]; snap['d:' + d.date] = J(fromDay(d));
+    return queue(() => rpc('editar_dia_colhe', { p_dia: old, p_novo_dia: d.date, p_horario: d.time, p_lugares: +d.spots, p_produto_pt: (d.what || {}).pt || '', p_produto_en: (d.what || {}).en || '', p_cultura: d.crop || null })).then(() => reloadSoon(true, true));
+  };
+  /* gestão: juntar produtos repetidos (produtores, favoritos, avisos e o endereço antigo passam para o que fica) */
+  N.mergeProducts = (keep, drop) => queue(() => rpc('juntar_produtos', { p_manter: keep, p_juntar: drop })).then(() => reloadSoon(true, true));
   N.deleteProduct = id => queue(() => rest('DELETE', 'produtos', 'id=' + eq(id), undefined, 'return=minimal'));
 
   /* ---------- contas ---------- */
@@ -379,7 +418,7 @@ const NUVEM = (() => {
       queue(async () => { if (c) await loadCatalog(); if (p) await loadPeople(); if (signature() !== before) softRender(); }, true);
     }, 500);
   }
-  const signature = () => J([PRODUCTS, FARMERS, RESTAURANTS, HARVEST_DAYS, BOX_SIZES, USERS, ORDERS, REQUESTS, ocup]);
+  const signature = () => J([PRODUCTS, FARMERS, RESTAURANTS, HARVEST_DAYS, BOX_SIZES, USERS, ORDERS, REQUESTS, ocup, typeof MESSAGES === 'undefined' ? 0 : MESSAGES, N.farmerHarvest || 0]);
   function softRender() {
     const busy = $('#modal.on') || (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) && document.activeElement.closest('main'));
     if (busy) { setTimeout(softRender, 2500); return; }
@@ -397,6 +436,7 @@ const NUVEM = (() => {
       try { await loadPeople(); }
       catch (e) { if (e.status === 401 || e.status === 403) { clearSession(); await loadPeople(); } else throw e; }
       await loadGuestOrders();
+      if (!sess) { try { await loadMsgs(); } catch (e) {} }
       if (sess) rtConnect();
       // na app não há mudança de página depois de entrar, por isso a verificação corre sempre (só lê com sessão iniciada)
       setInterval(() => { if (sess && document.visibilityState === 'visible' && !N.live) reloadSoon(true, true); }, POLL);

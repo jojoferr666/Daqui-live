@@ -39,7 +39,8 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const norm = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
-const P = id => PRODUCTS.find(p => p.id === id);
+/* produtos juntados (repetidos) continuam a abrir pelo id antigo: p.aliases */
+const P = id => PRODUCTS.find(p => p.id === id) || PRODUCTS.find(p => (p.aliases || []).includes(id));
 const JTH = () => T('Colhe Connosco', 'Join the Harvest');
 const F = id => FARMERS.find(f => f.id === id);
 const unitLabel = u => ({ kg: '/kg', un: T('/unidade', '/each'), cx: T('/caixa', '/box'), molho: T('/molho', '/bunch'), cuv: T('/cuvete', '/punnet') }[u] || '');
@@ -66,14 +67,77 @@ function splitOf(p) {
   if (p.farmer && F(p.farmer).island) return [52, 18, 30];
   return isStored(p) ? [54, 22, 24] : [60, 10, 30];
 }
+/* ---------- produtores e modo de produção ----------
+   p.producers = [{ farmer, organic, outOfStock }]: o mesmo produto pode vir de vários agricultores (só informativo;
+   o cliente não escolhe o agricultor). Sem p.producers, há um só produtor: p.farmer (biológico se p.organic).
+   p.price é o preço do convencional quando há convencional; num produto só biológico é o preço do biológico.
+   O biológico custa mais 20% do que o convencional (BIO_EXTRA). */
+const BIO_EXTRA = 0.2;
+const round2 = v => { const n = +v; return Number.isFinite(n) ? Math.round(+(n.toFixed(10) + 'e2')) / 100 : 0; };   // 1,89 × 2,5 = 4,73 (e não 4,72)
+function offersOf(p) {
+  if (!p || p.cat === 'caixas') return [];
+  return Array.isArray(p.producers) && p.producers.length ? p.producers : p.farmer ? [{ farmer: p.farmer, organic: !!p.organic, outOfStock: !!p.outOfStock }] : [];
+}
+const hasConv = p => offersOf(p).some(o => !o.organic);
+const hasBio = p => offersOf(p).some(o => o.organic);
+const offerOn = (p, bio) => !p.outOfStock && offersOf(p).some(o => !!o.organic === !!bio && !o.outOfStock);
+const defaultBio = p => !hasConv(p) || (!offerOn(p, false) && offerOn(p, true));
+function variantPrice(p, bio) {
+  if (!p || p.cat === 'caixas') return p ? p.price : 0;
+  return hasConv(p) ? (bio ? round2(p.price * (1 + BIO_EXTRA)) : p.price) : (bio ? p.price : round2(p.price / (1 + BIO_EXTRA)));
+}
+const shownPrice = p => (p.cat === 'caixas' ? p.price : variantPrice(p, defaultBio(p)));
+/* produtos de um agricultor (como produtor principal ou como mais um produtor) */
+const producedBy = (p, fid) => offersOf(p).some(o => o.farmer === fid);
+const ofFarmer = fid => PRODUCTS.filter(p => p.cat !== 'caixas' && producedBy(p, fid));
+/* nome sem "biológico", para encontrar produtos repetidos (ex.: "Cenoura" e "Cenoura biológica") */
+const baseName = s => norm(s).replace(/\b(biologic[oa]s?|bio|organic[oa]?s?)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
+/* quantidades: os produtos ao quilo vendem-se de meio em meio quilo (ex.: 2,5 kg) */
+const KG_STEP = 0.5;
+const byKg = p => !!p && p.unit === 'kg' && p.cat !== 'caixas';
+const qtyStep = p => (byKg(p) ? KG_STEP : 1);
+const numFmt = v => new Intl.NumberFormat(lang === 'en' ? 'en-GB' : 'pt-PT', { maximumFractionDigits: 2 }).format(v);
+const fmtQty = (q, p) => (byKg(p) ? `${numFmt(q)} kg` : numFmt(q));
+const itemCount = items => (items || []).reduce((n, i) => n + (byKg(P(i.id)) ? 1 : +i.qty || 0), 0);
+/* uma linha de encomenda: "2,5 kg × Pera Rocha (biológico)" */
+function itemText(i) { const p = P(i.id); return `${fmtQty(i.qty, p)} × ${esc(p ? L(p.name) : i.id)}${i.size ? ` (${sizeName(i.size)})` : ''}${i.bio ? ` (${T('biológico', 'organic')})` : ''}`; }
+const bioName = bio => (bio ? T('Biológico', 'Organic') : T('Convencional', 'Conventional'));
+/* "Produzido por": um nome por agricultor (com convencional e/ou biológico quando o produto tem os dois) */
+const farmersOf = p => offersOf(p).map(o => o.farmer).filter((x, i, a) => F(x) && a.indexOf(x) === i);
+function producersLine(p) {
+  const both = hasBio(p) && hasConv(p);
+  return farmersOf(p).map(fid => { const f = F(fid), kinds = offersOf(p).filter(o => o.farmer === fid).map(o => bioName(o.organic).toLowerCase());
+    return `<a href="${farmerHref(f)}">${esc(f.name)}</a> <span class="small muted">(${esc(f.place)}${both ? ': ' + kinds.join(T(' e ', ' and ')) : ''})</span>`; }).join(', ');
+}
+/* ---------- Colhe Connosco: início e fim de cada dia (a partir do horário "9h30–12h30") ----------
+   Avaliações: abrem no início do dia e fecham 48 horas depois do fim. */
+function harvestWindow(d) {
+  const m = String(d.time || '').match(/(\d{1,2})h(\d{2})?\D+(\d{1,2})h(\d{2})?/), base = parseISO(d.date);
+  const at = (h, mi) => { const x = new Date(base); x.setHours(+h, +(mi || 0), 0, 0); return x; };
+  const start = m ? at(m[1], m[2]) : at(0, 0), end = m ? at(m[3], m[4]) : at(23, 59);
+  return { start, end, close: new Date(end.getTime() + 48 * 3600e3) };
+}
+const harvestStarted = d => new Date() >= harvestWindow(d).start;
+const harvestPast = d => new Date() >= harvestWindow(d).end;
+const harvestRateOpen = d => { const w = harvestWindow(d), n = new Date(); return n >= w.start && n <= w.close; };
+const stars = n => `<span class="stars" role="img" aria-label="${n} ${T('de 5 estrelas', 'out of 5 stars')}">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= n ? 'on' : ''}">★</i>`).join('')}</span>`;
+/* resumo de um dia: participantes, avaliações (sem nomes) e quilos registados */
+function harvestSummary(date) {
+  if (NUVEM.on && !NUVEM.isAdmin() && NUVEM.farmerHarvest && NUVEM.farmerHarvest[date]) return NUVEM.farmerHarvest[date];
+  const rows = Object.values(USERS).flatMap(u => (u.harvests || []).filter(h => h.date === date).map(h => Object.assign({ user: u }, h)));
+  const rated = rows.filter(h => h.rating);
+  return { people: rows.reduce((n, h) => n + (+h.people || 1), 0), n: rated.length, avg: rated.length ? rated.reduce((a, h) => a + +h.rating, 0) / rated.length : 0,
+    comments: rated.map(h => ({ rating: +h.rating, comment: h.comment || '' })), kg: round2(rows.reduce((a, h) => a + (h.record && +h.record.kg || 0), 0)) };
+}
 const seasonText = p => { const [a, b] = p.season; return a === 1 && b === 12 ? T('Todo o ano', 'All year round') : `${monthName(a, 'short')}–${monthName(b, 'short')}`; };
 
 /* ---------- componentes ---------- */
 function otag(p, big = false) {
   if (p.cat === 'caixas') return `<span class="otag${big ? ' big' : ''}"><b>${T('Vários agricultores', 'Several farmers')}</b><span>${T('Composição muda todas as semanas', 'The selection changes every week')}</span></span>`;
-  const f = F(p.farmer), h = harvestOf(p);
+  const f = F(p.farmer) || F((offersOf(p)[0] || {}).farmer), h = harvestOf(p), more = offersOf(p).filter(o => o.farmer !== (f && f.id)).map(o => o.farmer).filter((x, i, a) => a.indexOf(x) === i).length;
+  if (!f) return '';
   const line = h ? `${T('Colheita', 'Harvested')}: ${fdate(h)}${isStored(p) ? T(', conservação em frio', ', cold-stored') : ''}` : `${T('Fora de época, volta em', 'Out of season, back in')} ${monthName(p.season[0])}`;
-  return `<span class="otag${big ? ' big' : ''}${h ? '' : ' off'}"><b>${esc(f.name)}, ${esc(f.place)}</b><span>${line}</span></span>`;
+  return `<span class="otag${big ? ' big' : ''}${h ? '' : ' off'}"><b>${esc(f.name)}, ${esc(f.place)}${more ? ` ${T(`e mais ${more}`, `and ${more} more`)}` : ''}</b><span>${line}</span></span>`;
 }
 /* ícone de cada produto: ficheiro img/produtos/<id>.svg (pode ser editado ou substituído) */
 function artFor(p, cls = '') { return `<img class="picon ${cls}" src="${R}img/produtos/${p.icon || p.id}.svg" alt="" loading="lazy" decoding="async">`; }
@@ -100,7 +164,7 @@ function trackHTML(o) {
     <dl class="dl cols2">
       <div><dt>${o.deliver === 'home' ? T('Entrega', 'Delivery') : T('Levantamento', 'Pick-up')}</dt><dd>${esc(when)}</dd></div>
       ${o.deliver === 'home' ? `<div><dt>${T('Morada', 'Address')}</dt><dd>${esc(o.address)}</dd></div>` : ''}
-      <div><dt>${T('Artigos', 'Items')}</dt><dd>${o.items.reduce((n, i) => n + i.qty, 0)}</dd></div>
+      <div><dt>${T('Artigos', 'Items')}</dt><dd>${itemCount(o.items)}</dd></div>
       <div><dt>Total</dt><dd>${money(o.total)}</dd></div>
     </dl></div>`;
 }
@@ -109,7 +173,7 @@ function badges(p) {
   if (!inSeason(p)) b.push(`<span class="badge off">${T('Fora de época', 'Out of season')}</span>`);
   else if (p.outOfStock) b.push(`<span class="badge nostock">${T('Fora de stock', 'Out of stock')}</span>`);
   if (p.essential) b.push(`<span class="badge">${T('Essencial', 'Essential')}</span>`);
-  if (p.organic) b.push(`<span class="badge bio">${T('Biológico', 'Organic')}</span>`);
+  if (hasBio(p)) b.push(`<span class="badge bio">${hasConv(p) ? T('Também biológico', 'Organic too') : T('Biológico', 'Organic')}</span>`);
   if (p.cat === 'caixas') b.push(`<span class="badge sub">${T('Também em subscrição', 'Also by subscription')}</span>`);
   return b.length ? `<span class="badges">${b.join('')}</span>` : '';
 }
@@ -140,14 +204,14 @@ function pcard(p) {
     <div class="pbody">
       <a class="pname" href="${url}">${esc(L(p.name))}</a>
       ${otag(p)}
-      <div class="price"><strong>${p.cat === 'caixas' ? T('desde ', 'from ') : ''}${money(p.price)}</strong>${unitExtra}</div>
+      <div class="price"><strong>${p.cat === 'caixas' ? T('desde ', 'from ') : ''}${money(shownPrice(p))}</strong>${unitExtra}</div>
       ${on ? splitBar(p) : `<p class="split-cap">${T('Época', 'Season')}: ${seasonText(p)}</p>`}
       ${btn}
     </div>
   </article>`;
 }
 function fcard(f, withStory = false) {
-  const crops = PRODUCTS.filter(p => p.farmer === f.id).map(p => L(p.name)).slice(0, 4).join(', ');
+  const crops = ofFarmer(f.id).map(p => L(p.name)).slice(0, 4).join(', ');
   return `<article class="fcard" data-farmer="${f.id}">
     <div class="pic">${farmSVG(f.seed, f.crop)}</div>
     <div class="fb">
@@ -180,14 +244,16 @@ const REQ_LABELS = () => ({ name: T('Nome', 'Name'), phone: T('Telemóvel', 'Mob
   order: T('Encomenda', 'Order'), result: T('Resultado', 'Result'), state: T('Estado', 'Status'), action: T('Ação', 'Action'), from: T('De', 'From'), to: T('Para', 'To'), product: T('Produto', 'Product'),
   what: T('O que aconteceu', 'What happened'), remedy: T('Preferência', 'Preference'), photo: T('Fotografia', 'Photo'), farm: T('Quinta', 'Farm'), region: T('Região', 'Region'), kind: T('Tipo de cozinha', 'Cuisine'),
   date: T('Data', 'Date'), time: T('Horário', 'Time'), spots: T('Lugares', 'Places'), price: T('Preço sugerido', 'Suggested price'), unit: T('Unidade', 'Unit'), season: T('Época', 'Season'), qty: T('Quantidade', 'Quantity'),
-  period: T('Período', 'Period'), namePt: T('Nome (PT)', 'Name (PT)'), nameEn: T('Nome (EN)', 'Name (EN)'), cat: T('Categoria', 'Category'), desc: T('Descrição', 'Description') });
+  period: T('Período', 'Period'), namePt: T('Nome (PT)', 'Name (PT)'), nameEn: T('Nome (EN)', 'Name (EN)'), cat: T('Categoria', 'Category'), desc: T('Descrição', 'Description'), descEn: T('Descrição (EN)', 'Description (EN)'),
+  organic: T('Modo de produção', 'Farming method'), productId: T('Produto do catálogo', 'Catalogue product') });
 function reqValue(k, v) {
   const maps = { area: { lt1: T('Menos de 1 ha', 'Under 1 ha'), '1-5': '1–5 ha', '5-20': '5–20 ha', gt20: T('Mais de 20 ha', 'Over 20 ha') }, pref: { app: T('Site ou aplicação', 'Website or app'), tel: T('Telefone', 'Phone') },
     result: { viewed: T('Consultada', 'Viewed'), notfound: T('Não encontrada', 'Not found') }, action: { reslot: T('Mudança do dia de entrega', 'Delivery day changed'), cancel: T('Cancelamento', 'Cancellation') },
     remedy: { sub: T('Substituir na próxima entrega', 'Replace next delivery'), ref: T('Reembolso', 'Refund') }, cat: { fruta: T('Fruta', 'Fruit'), legumes: T('Legumes', 'Vegetables') },
     unit: { kg: 'kg', un: T('unidade', 'each'), molho: T('molho', 'bunch'), cuv: T('cuvete', 'punnet') } };
   if (maps[k] && maps[k][v]) return maps[k][v];
-  if (k === 'product' && P(v)) return L(P(v).name);
+  if ((k === 'product' || k === 'productId') && P(v)) return L(P(v).name);
+  if (k === 'organic') return v === 'sim' || v === true ? T('Biológico', 'Organic') : T('Convencional', 'Conventional');
   if (k === 'region' && REGIONS[v]) return regionName(v);
   if ((k === 'from' || k === 'to' || k === 'date') && /^\d{4}-\d{2}-\d{2}$/.test(v)) return slotLabel(v);
   if (k === 'state' && /^\d$/.test(String(v))) return [...STAGES(), T('Cancelada', 'Cancelled')][+v];
@@ -216,7 +282,7 @@ function searchBox(id) {
   </form>`;
 }
 function header() {
-  const count = cart.reduce((n, i) => n + i.qty, 0), u = currentUser();
+  const count = itemCount(cart), u = currentUser();
   const newReq = u && u.role === 'admin' ? REQUESTS.filter(r => r.status === 'novo').length : 0;
   const nav = NAV().map(([p, n, k]) => `<li><a href="${href(p)}"${SECTION === k ? ' aria-current="page"' : ''}>${n}</a></li>`).join('');
   return `<div class="announce on-dark">${T('A Caixa Mista da Estação é a forma mais fácil de conhecer a Daqui.', 'The Mixed Seasonal Box is the easiest way to get to know Daqui.')} <a href="${href('produtos/caixa-mista')}">${T('Ver a caixa', 'See the box')}</a></div>
@@ -255,7 +321,7 @@ function footer() {
         <p class="ftr-contact">${T('Linha Daqui', 'Daqui line')}: <strong>${PHONE}</strong><br>${EMAIL}</p></div>
       <div><h3>${T('Loja', 'Shop')}</h3><ul><li><a href="${href('produtos')}">${T('Todos os produtos', 'All products')}</a></li><li><a href="${href('subscricao')}">${T('Caixas da Estação', 'Seasonal boxes')}</a></li><li><a href="${href('colhe-connosco')}">${JTH()}</a></li><li><a href="${href('restaurantes')}">${T('Selo Daqui', 'Daqui seal')}</a></li></ul></div>
       <div><h3>${T('Ajudamos com', 'We can help with')}</h3><ul><li><a href="${href('contacto')}">${T('Incidências e reembolsos', 'Issues and refunds')}</a></li><li><a href="${href('conta')}">${T('A minha conta', 'My account')}</a></li><li><a href="${href('faq')}">${T('Perguntas frequentes', 'FAQ')}</a></li><li><a href="${href('agricultores', 'adesao=1')}">${T('Inscrever-me como agricultor', 'Sign up as a farmer')}</a></li></ul></div>
-      <div><h3>${T('Políticas', 'Policies')}</h3><ul><li><a href="${href('politicas')}">${T('Termos de utilização', 'Terms of use')}</a></li><li><a href="${href('politicas')}">${T('Privacidade', 'Privacy')}</a></li><li><a href="${href('politicas')}">Cookies</a></li><li><a href="${href('politicas')}">${T('Devoluções', 'Refunds')}</a></li></ul></div>
+      <div><h3>${T('Políticas', 'Policies')}</h3><ul><li><a href="${href('politicas', 'sec=termos')}">${T('Termos de utilização', 'Terms of use')}</a></li><li><a href="${href('politicas', 'sec=privacidade')}">${T('Privacidade', 'Privacy')}</a></li><li><a href="${href('politicas', 'sec=cookies')}">Cookies</a></li><li><a href="${href('politicas', 'sec=devolucoes')}">${T('Devoluções', 'Refunds')}</a></li></ul></div>
       <div><h3>${T('Pagamentos', 'Payments')}</h3><div class="pay"><span>MB WAY</span><span>Multibanco</span><span>Visa</span><span>Mastercard</span><span>PayPal</span><span>${T('Na entrega', 'On delivery')}</span></div>
         <h3 class="mt">${T('Siga-nos', 'Follow us')}</h3><div class="socials">${soc}</div></div>
     </div>
@@ -268,19 +334,20 @@ let cart = store.get('daqui-cart', []).filter(i => i && P(i.id));
 let deliver = store.get('daqui-deliver', 'pickup');
 const saveCart = () => { store.set('daqui-cart', cart); store.set('daqui-deliver', deliver); };
 function addToCart(id, opts = {}, qty = 1) {
-  const p = P(id); let price = p.price;
-  if (p.cat === 'caixas') { const sz = BOX_SIZES[id].find(s => s.s === (opts.size || 'P')) || BOX_SIZES[id][0]; price = sz.price; opts.size = sz.s; opts.kg = sz.kg; }
-  const key = [id, opts.size || ''].join('|'); const ex = cart.find(i => i.key === key);
-  if (ex) ex.qty += qty; else cart.push({ key, id, qty, price, opts });
+  const p = P(id); let price = p.price; id = p.id; opts = Object.assign({}, opts);
+  if (p.cat === 'caixas') { const sz = BOX_SIZES[id].find(s => s.s === (opts.size || 'P')) || BOX_SIZES[id][0]; price = sz.price; opts.size = sz.s; opts.kg = sz.kg; delete opts.bio; }
+  else { const bio = opts.bio === undefined ? defaultBio(p) : !!opts.bio && hasBio(p); if (bio) opts.bio = true; else delete opts.bio; price = variantPrice(p, bio); qty = Math.max(qtyStep(p), round2(qty)); }
+  const key = [id, opts.size || '', opts.bio ? 'bio' : ''].join('|'); const ex = cart.find(i => i.key === key);
+  if (ex) ex.qty = round2(ex.qty + qty); else cart.push({ key, id, qty, price, opts });
   saveCart(); refreshCartUI(); toast(T(`Adicionado ao cabaz: ${L(p.name)}`, `Added to your basket: ${L(p.name)}`));
 }
-function cartTotals() { const sub = cart.reduce((s, i) => s + i.price * i.qty, 0); const del = cart.length && deliver === 'home' ? DELIVERY_FEE : 0; return { sub, del, tot: sub + del }; }
+function cartTotals() { const sub = round2(cart.reduce((s, i) => s + i.price * i.qty, 0)); const del = cart.length && deliver === 'home' ? DELIVERY_FEE : 0; return { sub, del, tot: sub + del }; }
 function drawerHTML() {
   const t = cartTotals();
   const items = cart.map(i => { const p = P(i.id); return `<div class="citem"><a class="thumb" href="${productHref(p)}" tabindex="-1">${artFor(p)}</a>
-    <div><h3><a href="${productHref(p)}">${esc(L(p.name))}</a></h3><div class="opt">${i.opts.size ? `${sizeName(i.opts.size)}, ${i.opts.kg} kg; ${T('compra única', 'one-off')}` : `${money(i.price)}${unitLabel(p.unit)}`}</div>
-      <div class="qty"><button data-qty="-1" data-key="${esc(i.key)}" aria-label="${T('Menos um', 'One less')}">${icon('minus', 16)}</button><span>${i.qty}</span><button data-qty="1" data-key="${esc(i.key)}" aria-label="${T('Mais um', 'One more')}">${icon('plus', 16)}</button></div></div>
-    <div class="ta-r"><b>${money(i.price * i.qty)}</b><br><button class="rm" data-remove="${esc(i.key)}" aria-label="${T('Remover', 'Remove')} ${esc(L(p.name))}">${icon('trash', 18)}</button></div></div>`; }).join('');
+    <div><h3><a href="${productHref(p)}">${esc(L(p.name))}</a></h3><div class="opt">${i.opts.size ? `${sizeName(i.opts.size)}, ${i.opts.kg} kg; ${T('compra única', 'one-off')}` : `${money(i.price)}${unitLabel(p.unit)}${i.opts.bio ? `, ${T('biológico', 'organic')}` : hasBio(p) ? `, ${T('convencional', 'conventional')}` : ''}`}</div>
+      <div class="qty"><button data-qty="-1" data-key="${esc(i.key)}" aria-label="${byKg(p) ? T('Menos meio quilo', 'Half a kilo less') : T('Menos um', 'One less')}">${icon('minus', 16)}</button><span>${fmtQty(i.qty, p)}</span><button data-qty="1" data-key="${esc(i.key)}" aria-label="${byKg(p) ? T('Mais meio quilo', 'Half a kilo more') : T('Mais um', 'One more')}">${icon('plus', 16)}</button></div></div>
+    <div class="ta-r"><b>${money(round2(i.price * i.qty))}</b><br><button class="rm" data-remove="${esc(i.key)}" aria-label="${T('Remover', 'Remove')} ${esc(L(p.name))}">${icon('trash', 18)}</button></div></div>`; }).join('');
   return `<div class="dh"><h2 id="cart-title">${T('O seu cabaz', 'Your basket')}</h2><button class="icon-btn" data-cart-close aria-label="${T('Fechar cabaz', 'Close basket')}">${icon('close', 24)}</button></div>
   <div class="db">
     <div class="promo">${crateSVG('mista')}<div><b>${T('Prefere receber todas as semanas?', 'Want it every week?')}</b><span class="small">${T('Subscreva uma Caixa da Estação com preço garantido durante 12 meses.', 'Subscribe to a Seasonal Box with a 12-month price guarantee.')}</span><br><a class="link" href="${href('subscricao')}">${T('Ver subscrições', 'See subscriptions')}</a></div></div>
@@ -294,7 +361,7 @@ function drawerHTML() {
 }
 function refreshCartUI() {
   const d = $('#drawer'); if (d.classList.contains('on')) d.innerHTML = drawerHTML();
-  const count = cart.reduce((n, i) => n + i.qty, 0);
+  const count = itemCount(cart);
   $$('[data-cart-open]').forEach(b => { b.setAttribute('aria-label', `${T('Abrir cabaz', 'Open basket')}, ${count} ${T('artigos', 'items')}`); const c = $('.count', b); if (count) { if (c) c.textContent = count; else b.insertAdjacentHTML('beforeend', `<span class="count">${count}</span>`); } else if (c) c.remove(); });
 }
 let lastFocus = null;
@@ -365,6 +432,7 @@ function render() {
   $('#app').innerHTML = header() + `<main id="main" tabindex="-1">${NUVEM.banner()}${out.html}</main>` + footer();
   document.title = `Daqui | ${out.title}`;
   setupSlider(); setupRails(); if (out.after) out.after();
+  if (typeof chatRefreshUI === 'function') chatRefreshUI();
 }
 function setLang(l) {
   if (l === lang) return; lang = l; store.set('daqui-lang', l); const y = scrollY; const open = $('#drawer').classList.contains('on');
@@ -390,7 +458,7 @@ document.addEventListener('click', e => {
   if (d.add) return addToCart(d.add);
   if (d.notify) return toggleNotify(d.notify);
   if (d.fav) return toggleFav(d.fav);
-  if (d.qty) { const i = cart.find(x => x.key === d.key); if (i) { i.qty += +d.qty; if (i.qty < 1) cart = cart.filter(x => x !== i); } saveCart(); refreshCartUI(); $(`[data-qty="${d.qty}"][data-key="${CSS.escape(d.key)}"]`)?.focus(); return; }
+  if (d.qty) { const i = cart.find(x => x.key === d.key); if (i) { const st = qtyStep(P(i.id)); i.qty = round2(i.qty + +d.qty * st); if (i.qty < st) cart = cart.filter(x => x !== i); } saveCart(); refreshCartUI(); $(`[data-qty="${d.qty}"][data-key="${CSS.escape(d.key)}"]`)?.focus(); return; }
   if (d.remove) { cart = cart.filter(x => x.key !== d.remove); saveCart(); refreshCartUI(); $('[data-cart-close]')?.focus(); return; }
   if (d.social) { e.preventDefault(); return toast(T('Perfil fictício nesta demonstração', 'Fictional profile in this demo')); }
   for (const h of PAGE_EVENTS.click) if (h(e, t, d) === true) return;

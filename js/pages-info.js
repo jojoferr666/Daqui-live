@@ -43,8 +43,8 @@ document.addEventListener('mouseover', e => {
 PAGES.agricultor = () => {
   const f = F(PID);
   if (!f) return { title: T('Agricultor não encontrado', 'Farmer not found'), html: `<div class="wrap page-head"><h1>${T('Agricultor não encontrado', 'Farmer not found')}</h1><a class="btn btn-green mt" href="${href('agricultores')}">${T('Ver agricultores', 'See farmers')}</a></div>` };
-  const prods = PRODUCTS.filter(p => p.farmer === f.id).sort((a, b) => relRank(a) - relRank(b));
-  const days = HARVEST_DAYS.filter(h => h.farmer === f.id);
+  const prods = ofFarmer(f.id).sort((a, b) => relRank(a) - relRank(b));
+  const days = HARVEST_DAYS.filter(h => h.farmer === f.id && !harvestPast(h));
   const html = `${crumbs([[T('Os nossos agricultores', 'Our farmers'), 'agricultores'], [f.name, '']])}
   <section class="wrap farmer-hero">
     <div class="fh-pic">${farmSVG(f.seed, f.crop)}</div>
@@ -119,12 +119,12 @@ function dayCard(dd) {
   </div>`;
 }
 PAGES['colhe-connosco'] = () => {
-  const next = HARVEST_DAYS.find(h => parseISO(h.date) >= today()) || HARVEST_DAYS[0];
+  const upcoming = HARVEST_DAYS.filter(h => !harvestPast(h)), next = upcoming[0];
   const html = `${crumbs([[JTH(), 'colhe-connosco']])}
   <section class="wrap page-head subhero">
     <div><h1>${T('Colhe Connosco', 'Join the Harvest')}</h1>
       <p class="lead mt-s">${T('Em dias marcados, as quintas abrem as portas a quem cá vive e a quem nos visita. Traga os seus sacos, colha com o agricultor e pague o peso à saída.', 'On set days, the farms open their gates to locals and visitors. Bring your bags, pick alongside the farmer and pay by weight on the way out.')}</p>
-      <span class="pill-note">${icon('calendar', 20)}${T('Próximo dia', 'Next day')}: ${fdate(next.date, { weekday: 'long', day: 'numeric', month: 'long' })}</span></div>
+      ${next ? `<span class="pill-note">${icon('calendar', 20)}${T('Próximo dia', 'Next day')}: ${fdate(next.date, { weekday: 'long', day: 'numeric', month: 'long' })}</span>` : ''}</div>
     <div class="banner r43">${farmSVG(5, 'diospiro')}</div>
   </section>
   <section class="sec sec-sage"><div class="wrap"><h2 class="mb">${T('Como funciona', 'How it works')}</h2>
@@ -133,11 +133,11 @@ PAGES['colhe-connosco'] = () => {
   <section class="sec"><div class="wrap">
     <div class="sec-head"><div><h2>${T('Próximos dias', 'Upcoming days')}</h2><p class="lead">${T('Os dias dependem do tempo. Se houver alteração, avisamos por mensagem.', 'Days depend on the weather. If anything changes, we\'ll text you.')}</p></div>
       ${currentUser() ? `<a class="btn btn-line c-campo" href="${href('conta')}">${T('As minhas inscrições', 'My sign-ups')}</a>` : ''}</div>
-    <div class="days" id="days">${HARVEST_DAYS.map(dayCard).join('')}</div>
+    <div class="days" id="days">${upcoming.length ? upcoming.map(dayCard).join('') : `<p class="muted">${T('Ainda não há dias marcados. Volte em breve.', 'No days scheduled yet. Check back soon.')}</p>`}</div>
   </div></section>`;
   return { title: JTH(), html };
 };
-function refreshDays() { const el = $('#days'); if (el) el.innerHTML = HARVEST_DAYS.map(dayCard).join(''); else { const y = scrollY; render(); scrollTo(0, y); } }
+function refreshDays() { const el = $('#days'); if (el) el.innerHTML = HARVEST_DAYS.filter(h => !harvestPast(h)).map(dayCard).join(''); else { const y = scrollY; render(); scrollTo(0, y); } }
 PAGE_EVENTS.click.push((e, t, d) => {
   if (d.harvest) {
     const u = currentUser(), dd = HARVEST_DAYS.find(x => x.date === d.harvest);
@@ -198,7 +198,12 @@ PAGES.contacto = () => ({ title: T('Contacto', 'Contact'), html: `${crumbs([[T('
   </div></section>
   <section class="sec"><div class="wrap two"><div><h2>${T('Pontos de recolha', 'Collection points')}</h2><p class="lead mt-s">${T('Levantamento grátis à quinta-feira, das 16h às 20h.', 'Free pick-up on Thursdays, 4 pm to 8 pm.')}</p>
       <ul class="plain-list mt">${PICKUP_POINTS.map(x => `<li>${icon('pin', 18)}${x}</li>`).join('')}</ul></div>
-    <div class="mapbox">${aveiroMapSVG([{ id: 'rossio', name: T('Ponto de recolha de Aveiro, Rossio', 'Aveiro collection point, Rossio'), lat: 40.6424, lon: -8.6553, href: '#rossio' }], lang, 'rossio', { icon: true })}</div></div></section>`, after: () => { const n = QS.get('encomenda'); if (n) helpModal('track', n, true); } });
+    <div class="mapbox">${aveiroMapSVG([{ id: 'rossio', name: T('Ponto de recolha de Aveiro, Rossio', 'Aveiro collection point, Rossio'), lat: 40.6424, lon: -8.6553, href: '#rossio' }], lang, 'rossio', { icon: true })}</div></div></section>`, after: () => {
+    /* abre o seguimento uma só vez: o endereço deixa de ter ?encomenda=…, para a janela não voltar a abrir quando a página é redesenhada (base de dados, língua…) */
+    const n = QS.get('encomenda'); if (!n || autoTracked) return; autoTracked = true;
+    if (PAGE_DOC !== 'app') { QS.delete('encomenda'); try { history.replaceState(null, '', location.pathname + (QS.toString() ? '?' + QS : '') + location.hash); } catch (e) {} }
+    helpModal('track', n, true); } });
+let autoTracked = false;
 /* gerir encomenda, seguimento e incidências: procuram a encomenda pelo número e telemóvel e ficam registados no painel de gestão */
 function helpModal(kind, preNum = '', auto = false) {
   const u = currentUser(), own = u ? ORDERS.filter(o => o.user === u.username).sort((a, b) => b.created.localeCompare(a.created)) : [];
@@ -286,14 +291,134 @@ PAGES.faq = () => {
 };
 PAGE_EVENTS.click.push((e, t, d) => { if (PAGE === 'faq' && d.faqcat) { faqCat = d.faqcat; $$('[data-faqcat]').forEach(b => b.setAttribute('aria-pressed', b.dataset.faqcat === faqCat)); $('#faqlist').innerHTML = faqList(FAQ.filter(f => faqCat === 'all' || f.cat === faqCat)); return true; } });
 PAGES.politicas = () => {
-  const S = (h, p) => `<h2>${h}</h2><p>${p}</p>`;
+  const S = (h, p, id) => `<h2 id="${id}">${h}</h2><p>${p}</p>`;
   return { title: T('Políticas', 'Policies'), html: `${crumbs([[T('Políticas', 'Policies'), 'politicas']])}
   <div class="wrap page-head legal"><h1>${T('Políticas', 'Policies')}</h1>
     <p class="note mt">${icon('alert', 22)}<span>${T('Textos de exemplo para um projeto académico. Não constituem termos legais.', 'Sample texts for an academic project. They are not legal terms.')}</span></p>
-    ${S(T('Termos de utilização', 'Terms of use'), T('Os produtos são frescos e sazonais, podendo variar ligeiramente em calibre e peso. Cobramos sempre o peso real.', 'Products are fresh and seasonal and may vary slightly in size and weight. We always charge the actual weight.'))}
-    ${S(T('Subscrições e preço garantido', 'Subscriptions and price guarantee'), T('O preço de cada subscrição fica guardado durante 12 meses a contar do início. Se o preço da caixa descer nesse período, passa a pagar o preço mais baixo. Pode pausar ou cancelar a qualquer momento.', 'Each subscription price is saved for 12 months from the start date. If the box price drops in that period, you pay the lower price. You can pause or cancel at any time.'))}
-    ${S(T('Privacidade', 'Privacy'), T('Usamos os seus dados apenas para encomendas, entregas e contactos sobre o serviço. Nesta demonstração, as contas ficam guardadas só no seu navegador.', 'We use your data only for orders, deliveries and service messages. In this demo, accounts are stored only in your browser.'))}
-    ${S('Cookies', T('Este site guarda no navegador o idioma, o cabaz e as contas de demonstração.', 'This site stores your language, basket and demo accounts in your browser.'))}
-    ${S(T('Devoluções e reembolsos', 'Refunds'), T('Se um produto chegar danificado, envie uma fotografia nas 48 horas seguintes. Substituímos na entrega seguinte ou devolvemos o valor.', 'If a product arrives damaged, send us a photo within 48 hours. We replace it in your next delivery or refund it.'))}
-  </div><div class="spacer"></div>` };
+    ${S(T('Termos de utilização', 'Terms of use'), T('Os produtos são frescos e sazonais, podendo variar ligeiramente em calibre e peso. Cobramos sempre o peso real.', 'Products are fresh and seasonal and may vary slightly in size and weight. We always charge the actual weight.'), 'termos')}
+    ${S(T('Subscrições e preço garantido', 'Subscriptions and price guarantee'), T('O preço de cada subscrição fica guardado durante 12 meses a contar do início. Se o preço da caixa descer nesse período, passa a pagar o preço mais baixo. Pode pausar ou cancelar a qualquer momento.', 'Each subscription price is saved for 12 months from the start date. If the box price drops in that period, you pay the lower price. You can pause or cancel at any time.'), 'subscricoes')}
+    ${S(T('Privacidade', 'Privacy'), T('Usamos os seus dados apenas para encomendas, entregas e contactos sobre o serviço. Nesta demonstração, as contas ficam guardadas só no seu navegador.', 'We use your data only for orders, deliveries and service messages. In this demo, accounts are stored only in your browser.'), 'privacidade')}
+    ${S('Cookies', T('Este site guarda no navegador o idioma, o cabaz e as contas de demonstração.', 'This site stores your language, basket and demo accounts in your browser.'), 'cookies')}
+    ${S(T('Devoluções e reembolsos', 'Refunds'), T('Se um produto chegar danificado, envie uma fotografia nas 48 horas seguintes. Substituímos na entrega seguinte ou devolvemos o valor.', 'If a product arrives damaged, send us a photo within 48 hours. We replace it in your next delivery or refund it.'), 'devolucoes')}
+  </div><div class="spacer"></div>`, after: () => { const sec = QS.get('sec'); if (sec) setTimeout(() => document.getElementById(sec)?.scrollIntoView({ block: 'start' }), 60); } };
 };
+
+/* ===================================================================================
+   FALAR COM A DAQUI — mensagens entre clientes (ou parceiros) e a conta de gestão
+   - Site: botão redondo no canto inferior direito, em todas as páginas.
+   - App: Conta → "Falar com a Daqui" (ecrã #/mensagens). Gestão: separador Mensagens.
+   - Sem base de dados as mensagens ficam neste navegador (demonstração). Com base de dados vão para a
+     tabela "mensagens" (supabase/06-melhorias.sql); um visitante sem conta usa um código de conversa
+     guardado no navegador.
+   =================================================================================== */
+const MSG_KEY = 'daqui-mensagens', CONV_KEY = 'daqui-conversa', GUEST_INFO_KEY = 'daqui-conversa-visitante';
+let MESSAGES = (() => { const l = store.get(MSG_KEY, []); return Array.isArray(l) ? l : []; })();   // [{ id, conv, user, name, contact, from: 'cliente'|'gestao', text, at, read }]
+const saveMessages = () => { if (!NUVEM.on) store.set(MSG_KEY, MESSAGES); };
+let chatOpen = false, adminConv = '', chatTimer = null;
+const newUUID = () => (crypto && crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); }));
+/* conversa da pessoa: a conta (com base de dados, o id da conta) ou, sem conta, um código guardado neste navegador */
+function myConv(create = false) {
+  const u = currentUser();
+  if (u) return NUVEM.on ? u._id : 'u:' + u.username;
+  let c = store.get(CONV_KEY, ''); if (!c && create) { c = newUUID(); store.set(CONV_KEY, c); } return c;
+}
+const convMsgs = conv => MESSAGES.filter(m => m.conv === conv).sort((a, b) => String(a.at).localeCompare(String(b.at)));
+function convOwner(conv) { const m = MESSAGES.find(x => x.conv === conv && x.user); return m && USERS[m.user] ? USERS[m.user] : Object.values(USERS).find(u => u._id === conv || 'u:' + u.username === conv) || null; }
+function convName(conv) { const u = convOwner(conv), g = MESSAGES.find(x => x.conv === conv && x.from === 'cliente' && x.name); return u ? `${u.name} (${u.username})` : g ? `${g.name}${g.contact ? ', ' + g.contact : ''} · ${T('sem conta', 'guest')}` : T('Visitante', 'Guest'); }
+function chatUnread() {
+  const u = currentUser();
+  if (u && u.role === 'admin') return MESSAGES.filter(m => m.from === 'cliente' && !m.read).length;
+  const c = myConv(); return c ? convMsgs(c).filter(m => m.from === 'gestao' && !m.read).length : 0;
+}
+function chatSend(text, conv, from) {
+  const u = currentUser(), g = store.get(GUEST_INFO_KEY, {}), owner = from === 'gestao' ? convOwner(conv) : u;
+  const m = { id: 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), conv, user: owner ? owner.username : null, name: from === 'gestao' ? 'Daqui' : u ? u.name : g.name || '', contact: from === 'gestao' || u ? '' : g.contact || '', from, text: String(text).slice(0, 2000), at: nowISO(), read: false };
+  MESSAGES.push(m); saveMessages(); if (NUVEM.on) NUVEM.sendMessage(m, owner); return m;
+}
+function chatMarkRead(conv, from) {
+  let ch = false; MESSAGES.forEach(m => { if (m.conv === conv && m.from === from && !m.read) { m.read = true; ch = true; } });
+  if (ch) { saveMessages(); if (NUVEM.on) NUVEM.markRead(conv); }
+}
+function chatThread(conv, meFrom) {
+  const list = convMsgs(conv), when = m => fdate(m.at, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const hello = meFrom === 'cliente' ? `<div class="msg them"><p>${T('Olá! Escreva aqui a sua pergunta: a equipa Daqui responde nesta conversa, nos dias úteis das 9h às 18h.', 'Hi! Write your question here: the Daqui team answers in this conversation, on working days from 9 am to 6 pm.')}</p></div>` : '';
+  return `<div class="msgs" id="msgs" aria-live="polite">${hello}${list.map(m => `<div class="msg ${m.from === meFrom ? 'me' : 'them'}"><p>${esc(m.text).replace(/\n/g, '<br>')}</p><span class="msg-t">${m.from === meFrom ? '' : m.from === 'gestao' ? 'Daqui · ' : esc(m.name || '') + ' · '}${when(m)}</span></div>`).join('')}
+    ${!list.length && meFrom === 'gestao' ? `<p class="muted small">${T('Sem mensagens.', 'No messages.')}</p>` : ''}</div>`;
+}
+function chatForm(conv, from) {
+  return `<form class="chat-f" data-chat-form data-conv="${esc(conv)}" data-as="${from}" novalidate><label class="sr" for="chat-text-${from}">${T('Mensagem', 'Message')}</label>
+    <textarea id="chat-text-${from}" rows="2" maxlength="2000" placeholder="${from === 'gestao' ? T('Responder…', 'Reply…') : T('Escreva a sua mensagem…', 'Write your message…')}" required></textarea>
+    <button class="btn btn-green btn-sm" type="submit" aria-label="${T('Enviar', 'Send')}">${icon('send', 18)}<span>${T('Enviar', 'Send')}</span></button></form>`;
+}
+/* o conteúdo da conversa do cliente (usado na janela do site e no ecrã da app) */
+function chatBody() {
+  const u = currentUser(), g = store.get(GUEST_INFO_KEY, null);
+  const note = NUVEM.on ? '' : `<p class="small muted chat-demo">${T('Demonstração: as mensagens ficam neste navegador e aparecem no separador Mensagens da conta de gestão.', 'Demo: messages stay in this browser and show up in the management account\'s Messages tab.')}</p>`;
+  if (!u && !(g && g.name)) return `${note}<form class="form chat-guest" data-chat-guest novalidate><p>${T('Para lhe podermos responder, diga-nos quem é.', 'So we can answer you, tell us who you are.')}</p>
+    <div class="field"><label for="cg-n">${T('Nome', 'Name')}</label><input id="cg-n" required autocomplete="name"></div>
+    <div class="field"><label for="cg-c">${T('E-mail ou telemóvel', 'Email or mobile')}</label><input id="cg-c" required autocomplete="email"></div>
+    <p class="err" hidden></p><button class="btn btn-green btn-sm" type="submit">${T('Começar conversa', 'Start chatting')}</button>
+    <p class="small muted">${T('Tem conta?', 'Have an account?')} <a class="link" href="${href('entrar', 'next=' + encodeURIComponent(typeof currentPath === 'function' ? currentPath() : ''))}">${T('Entre', 'Sign in')}</a> ${T('para ver as mensagens em todos os dispositivos.', 'to see your messages on every device.')}</p></form>`;
+  const conv = myConv(true);
+  return `${note}${chatThread(conv, 'cliente')}${chatForm(conv, 'cliente')}`;
+}
+/* site: botão e janela (ficam fora de #app, para não desaparecerem quando a página é redesenhada) */
+function chatRefreshUI() {
+  if (PAGE_DOC === 'app') return;
+  let w = $('#chat'); if (!w) { w = document.createElement('div'); w.id = 'chat'; document.body.appendChild(w); }
+  const u = currentUser(), n = chatUnread(), admin = u && u.role === 'admin';
+  const fab = admin ? `<a class="chat-fab" href="${href('conta', 'tab=mensagens')}" aria-label="${T('Mensagens dos clientes', 'Customer messages')}${n ? `, ${n} ${T('por ler', 'unread')}` : ''}">${icon('chat', 26)}${n ? `<span class="count">${n}</span>` : ''}</a>`
+    : `<button class="chat-fab" data-chat-toggle aria-expanded="${chatOpen}" aria-controls="chat-box" aria-label="${T('Falar com a Daqui', 'Talk to Daqui')}${n ? `, ${n} ${T('mensagens novas', 'new messages')}` : ''}">${icon(chatOpen ? 'close' : 'chat', 26)}${n && !chatOpen ? `<span class="count">${n}</span>` : ''}</button>`;
+  const box = chatOpen && !admin ? `<section class="chat-box" id="chat-box" role="dialog" aria-label="${T('Falar com a Daqui', 'Talk to Daqui')}"><header class="chat-h"><span><b>${T('Falar com a Daqui', 'Talk to Daqui')}</b><span class="small">${T('Respondemos nos dias úteis, 9h–18h', 'We reply on working days, 9 am–6 pm')}</span></span><button class="icon-btn" data-chat-toggle aria-label="${T('Fechar', 'Close')}">${icon('close', 22)}</button></header><div class="chat-in">${chatBody()}</div></section>` : '';
+  const keep = $('#chat-text-cliente')?.value || '';
+  w.innerHTML = box + fab;
+  if (keep && $('#chat-text-cliente')) $('#chat-text-cliente').value = keep;
+  const m = $('#msgs', w); if (m) m.scrollTop = m.scrollHeight;
+}
+function chatOpenNow() {
+  if (PAGE_DOC === 'app') { location.hash = currentUser()?.role === 'admin' ? '#/g/mensagens' : '#/mensagens'; return; }
+  chatOpen = true; chatRefreshUI(); const c = myConv(); if (c) chatMarkRead(c, 'gestao'); chatRefreshUI(); setTimeout(() => ($('#chat-text-cliente') || $('#cg-n'))?.focus(), 30); chatPoll();
+}
+/* com base de dados: enquanto a conversa está aberta, procura respostas novas */
+function chatPoll() {
+  clearInterval(chatTimer); if (!NUVEM.on) return;
+  chatTimer = setInterval(() => {
+    const open = (PAGE_DOC === 'app' && /^#\/(mensagens|g\/mensagens)/.test(location.hash)) || chatOpen || (PAGE === 'conta' && typeof adminTab !== 'undefined' && adminTab === 'mensagens' && currentUser()?.role === 'admin');
+    if (!open || document.visibilityState !== 'visible') { if (!open) clearInterval(chatTimer); return; }
+    const before = JSON.stringify(MESSAGES.map(m => [m.id, m.read]));
+    NUVEM.loadMessages().then(() => { if (JSON.stringify(MESSAGES.map(m => [m.id, m.read])) === before) return; chatAfterNew(); });
+  }, 6000);
+}
+function chatAfterNew() {
+  const u = currentUser();
+  if (PAGE_DOC === 'app' || (u && u.role === 'admin' && PAGE === 'conta')) { const busy = document.activeElement && /^(TEXTAREA|INPUT)$/.test(document.activeElement.tagName) && document.activeElement.value; if (!busy) rerenderKeep(); }
+  else { const c = myConv(); if (c && chatOpen) chatMarkRead(c, 'gestao'); chatRefreshUI(); }
+}
+/* gestão: separador Mensagens (site e app) */
+function tabMensagens() {
+  const convs = [...new Set(MESSAGES.map(m => m.conv))].map(c => { const l = convMsgs(c); return { c, last: l[l.length - 1], unread: l.filter(m => m.from === 'cliente' && !m.read).length }; }).sort((a, b) => String(b.last.at).localeCompare(String(a.last.at)));
+  if (!adminConv || !convs.some(x => x.c === adminConv)) adminConv = convs[0] ? convs[0].c : '';
+  if (adminConv) chatMarkRead(adminConv, 'cliente');
+  setTimeout(chatPoll, 0);
+  const owner = adminConv && convOwner(adminConv);
+  return `<section class="acc-sec"><h2>${T('Mensagens', 'Messages')}</h2>
+    <p class="muted mt-s">${T('Conversas iniciadas no botão "Falar com a Daqui" do site e da app. O cliente recebe a resposta na conversa (e no telemóvel, se tiver a app com notificações).', 'Conversations started from the "Talk to Daqui" button on the site and in the app. The customer gets the reply in the conversation (and on their phone, if they have the app with notifications).')}</p>
+    ${convs.length ? `<div class="inbox-chat mt">
+      <ul class="conv-list" role="list">${convs.map(x => `<li><button class="conv${x.c === adminConv ? ' on' : ''}" data-chat-conv="${esc(x.c)}" aria-pressed="${x.c === adminConv}"><b>${esc(convName(x.c))}</b><span class="small muted">${esc(String(x.last.text).slice(0, 60))}</span><span class="small muted">${fdate(x.last.at, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>${x.unread ? `<span class="count-in">${x.unread}</span>` : ''}</button></li>`).join('')}</ul>
+      <div class="conv-thread"><div class="row-between"><h3>${esc(convName(adminConv))}</h3>${owner ? `<span class="small muted">${esc(owner.phone || '')}${owner.partner ? ` · ${owner.partner.kind === 'agricultor' ? T('agricultor', 'farmer') : T('restaurante', 'restaurant')}` : ''}</span>` : ''}</div>
+        ${chatThread(adminConv, 'gestao')}${chatForm(adminConv, 'gestao')}</div></div>` : `<p class="muted mt">${T('Ainda não há mensagens.', 'No messages yet.')}</p>`}</section>`;
+}
+PAGE_EVENTS.click.push((e, t, d) => {
+  if ('chatToggle' in d) { if (chatOpen) { chatOpen = false; chatRefreshUI(); $('.chat-fab')?.focus(); } else chatOpenNow(); return true; }
+  if ('chatOpen' in d) { chatOpenNow(); return true; }
+  if (d.chatConv !== undefined) { adminConv = d.chatConv; rerenderKeep(`[data-chat-conv="${CSS.escape(d.chatConv)}"]`); chatPoll(); return true; }
+});
+PAGE_EVENTS.submit.push((e, f) => {
+  if (f.matches('[data-chat-guest]')) { e.preventDefault(); if (!validate(f)) return true; store.set(GUEST_INFO_KEY, { name: $('#cg-n').value.trim(), contact: $('#cg-c').value.trim() }); PAGE_DOC === 'app' ? rerenderKeep('#chat-text-cliente') : (chatRefreshUI(), $('#chat-text-cliente')?.focus()); return true; }
+  if (!f.matches('[data-chat-form]')) return;
+  e.preventDefault(); const ta = $('textarea', f), text = ta.value.trim(); if (!text) { ta.focus(); return true; }
+  chatSend(text, f.dataset.conv || myConv(true), f.dataset.as === 'gestao' ? 'gestao' : 'cliente'); ta.value = '';
+  if (PAGE_DOC === 'app' || f.dataset.as === 'gestao') rerenderKeep(`#${ta.id}`); else { chatRefreshUI(); $('#chat-text-cliente')?.focus(); }
+  chatPoll(); return true;
+});
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && e.target.matches && e.target.matches('.chat-f textarea')) { e.preventDefault(); e.target.form.requestSubmit(); } });
