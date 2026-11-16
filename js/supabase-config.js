@@ -9,8 +9,8 @@
 
    Esta chave pode estar no site: só dá o acesso que as regras da base de dados (01-estrutura.sql) permitem.
    NUNCA ponha aqui a chave "service_role" nem a "secret" (sb_secret_…): essas dão acesso total. */
-const SUPABASE_URL = '';
-const SUPABASE_KEY = '';
+const SUPABASE_URL = 'https://lcinpdjxoiahdzljxqts.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_E6jlAnSlqQjGtjbAH2VLVg_ed11xnO1';
 
 /* Quando o tempo real não está disponível, o site volta a ler a base de dados de quantos em quantos segundos
    (só com sessão iniciada e com a página visível). */
