@@ -1,0 +1,5 @@
+<!-- Daqui: ícone de Dióspiro. Pode editar este ficheiro ou substituí-lo por outro SVG com o mesmo nome. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M60 36c26 0 40 14 40 34 0 22-18 34-40 34S20 92 20 70c0-20 14-34 40-34z" fill="#E2742A"/>
+<path d="M30 60c-4 12 0 26 12 34-6-10-8-22-4-34z" fill="#F09A4C"/>
+<path d="M60 38c-10-8-22-6-26 0 8 2 16 4 26 0zM60 38c10-8 22-6 26 0-8 2-16 4-26 0zM60 38c-6 6-8 12-6 16 4-2 6-8 6-16zM60 38c6 6 8 12 6 16-4-2-6-8-6-16z" fill="#5B6E22"/>
+<path d="M60 36c0-6 1-10 4-12" stroke="#4A3A1A" stroke-width="3" fill="none" stroke-linecap="round"/></svg>

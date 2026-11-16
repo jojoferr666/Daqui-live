@@ -1,0 +1,4 @@
+<!-- Daqui: ícone de Abóbora-menina. Pode editar este ficheiro ou substituí-lo por outro SVG com o mesmo nome. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><ellipse cx="60" cy="72" rx="44" ry="32" fill="#D9822B"/><ellipse cx="60" cy="72" rx="26" ry="32" fill="#E8973E"/><ellipse cx="60" cy="72" rx="10" ry="32" fill="#F0A957"/>
+<path d="M34 72c0-17 6-29 14-32M86 72c0-17-6-29-14-32" stroke="#B9641C" stroke-width="2" fill="none"/>
+<path d="M57 42c0-8-2-14 2-20 4 1 6 3 6 6-2 4-2 9-1 14z" fill="#6A5A26"/><path transform="translate(64 32) rotate(-10) scale(1.1)" d="M0 0c6-9 16-11 22-8-5 8-14 11-22 8z" fill="#6E8B2E"/></svg>

@@ -1,0 +1,6 @@
+<!-- Daqui: ícone de Nectarina. Pode editar este ficheiro ou substituí-lo por outro SVG com o mesmo nome. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><ellipse cx="60" cy="68" rx="30" ry="31" fill="#E9A84A"/>
+<ellipse cx="69" cy="71.1" rx="18" ry="21.7" fill="#C8432F" opacity=".75"/>
+<ellipse cx="46.5" cy="57.15" rx="7.5" ry="5.58" fill="#F4C67A" transform="rotate(-35 46.5 57.15)"/>
+<path d="M60 40c-8 14-8 45 2 54" stroke="rgba(0,0,0,.18)" stroke-width="2.4" fill="none"/>
+<path d="M60 39c0-5 1-8 3-10" stroke="#5A4320" stroke-width="2.6" fill="none" stroke-linecap="round"/><path transform="translate(63 31) rotate(-15) scale(1)" d="M0 0c6-9 16-11 22-8-5 8-14 11-22 8z" fill="#6E8B2E"/></svg>

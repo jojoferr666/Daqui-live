@@ -1,0 +1,6 @@
+<!-- Daqui: ícone de Ameixa. Pode editar este ficheiro ou substituí-lo por outro SVG com o mesmo nome. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><ellipse cx="60" cy="68" rx="28" ry="34" fill="#6B3A6E"/>
+<ellipse cx="68.4" cy="71.4" rx="16.8" ry="23.799999999999997" fill="#874E8A" opacity=".75"/>
+<ellipse cx="47.4" cy="56.1" rx="7" ry="6.12" fill="#A27AA4" transform="rotate(-35 47.4 56.1)"/>
+<path d="M60 37c-8 14-8 48 2 60" stroke="rgba(0,0,0,.18)" stroke-width="2.4" fill="none"/>
+<path d="M60 36c0-5 1-8 3-10" stroke="#5A4320" stroke-width="2.6" fill="none" stroke-linecap="round"/><path transform="translate(63 28) rotate(-15) scale(1)" d="M0 0c6-9 16-11 22-8-5 8-14 11-22 8z" fill="#6E8B2E"/></svg>

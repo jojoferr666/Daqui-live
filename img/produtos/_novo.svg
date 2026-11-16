@@ -1,0 +1,2 @@
+<!-- Ícone provisório para produtos novos. Substitua por um desenho próprio com o nome <id-do-produto>.svg -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><circle cx="60" cy="64" r="34" fill="#E2E8C8"/><path d="M40 80C40 56 58 40 84 38c0 26-16 42-44 42z" fill="#6E8B2E"/><path d="M40 80l26-26" stroke="#3C6104" stroke-width="3" stroke-linecap="round"/></svg>

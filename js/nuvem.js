@@ -1,0 +1,376 @@
+/* ===== Daqui — ligação à base de dados Supabase ("modo nuvem") =====
+   Só funciona com js/supabase-config.js preenchido. Sem isso (ou sem ligação, como no OnionShare), NUVEM.on fica
+   false e o site usa os dados do navegador, como antes.
+
+   Como funciona
+   - Ao abrir uma página, NUVEM.start() lê o catálogo (produtos, agricultores, restaurantes, caixas, dias Colhe Connosco)
+     e, com sessão iniciada, as contas, subscrições, inscrições, encomendas e pedidos que a pessoa pode ver
+     (as regras de acesso estão na base de dados: cada conta vê o que é seu, a gestão vê tudo).
+   - O resto do site continua a trabalhar com USERS, ORDERS, REQUESTS, PRODUCTS… Quando o código chama
+     saveUsers(), saveOrders(), saveRequests() ou saveCatalog(), este ficheiro compara com o que veio da base de dados
+     e envia só o que mudou.
+   - Tempo real: o site recebe um aviso do Supabase sempre que uma tabela muda e volta a ler os dados;
+     se o tempo real falhar, volta a ler de SUPABASE_ATUALIZAR_SEGUNDOS em SUPABASE_ATUALIZAR_SEGUNDOS segundos.
+   - Não usa bibliotecas externas: fala diretamente com as APIs REST, Auth e Realtime do Supabase. */
+const NUVEM = (() => {
+  const BASE = (typeof SUPABASE_URL === 'string' ? SUPABASE_URL : '').trim().replace(/\/+$/, '');
+  const KEY = (typeof SUPABASE_KEY === 'string' ? SUPABASE_KEY : '').trim();
+  const POLL = Math.max(5, +(typeof SUPABASE_ATUALIZAR_SEGUNDOS !== 'undefined' ? SUPABASE_ATUALIZAR_SEGUNDOS : 30) || 30) * 1000;
+  const SESS_KEY = 'daqui-nuvem-sessao', GUEST_KEY = 'daqui-encomendas-visitante';
+  const TABLES = ['produtos', 'agricultores', 'restaurantes', 'dias_colhe', 'caixas_precos', 'perfis', 'subscricoes', 'inscricoes_colhe', 'encomendas', 'pedidos'];
+  const CATALOG_TABLES = TABLES.slice(0, 5);
+  const N = { on: false, configured: /^https?:\/\//.test(BASE) && KEY.length > 20, live: false, error: '', failed: false };
+  let sess = null, me = null, ocup = {}, ownAtLoad = {}, snap = {}, chain = Promise.resolve();
+
+  /* ---------- pedidos HTTP ---------- */
+  async function http(method, path, body, prefer, auth = true) {
+    if (auth) await fresh();
+    const h = { apikey: KEY, 'Content-Type': 'application/json' };
+    if (auth && sess) h.Authorization = 'Bearer ' + sess.access_token;
+    if (prefer) h.Prefer = prefer;
+    const r = await fetch(BASE + path, { method, headers: h, body: body === undefined ? undefined : JSON.stringify(body), keepalive: method !== 'GET' });   // keepalive: termina mesmo que a página mude
+    const txt = await r.text(); let data = null;
+    try { data = txt ? JSON.parse(txt) : null; } catch (e) { data = txt; }
+    if (!r.ok) {
+      const e = new Error((data && (data.message || data.msg || data.error_description || data.error)) || 'HTTP ' + r.status);
+      e.status = r.status; e.code = data && (data.code || data.error_code || data.error); throw e;
+    }
+    return data;
+  }
+  const eq = v => 'eq.' + encodeURIComponent(v);
+  const rest = (method, table, query, body, prefer) => http(method, `/rest/v1/${table}${query ? '?' + query : ''}`, body, prefer);
+  const rpc = (fn, args) => http('POST', `/rest/v1/rpc/${fn}`, args);
+  const authPost = (path, body) => http('POST', '/auth/v1/' + path, body, undefined, false);
+
+  /* ---------- sessão ---------- */
+  function setSession(d) {
+    sess = { access_token: d.access_token, refresh_token: d.refresh_token, expires_at: d.expires_at || Math.floor(Date.now() / 1000) + (d.expires_in || 3600), user_id: d.user ? d.user.id : sess && sess.user_id };
+    store.set(SESS_KEY, sess); rtToken();
+  }
+  function clearSession() { sess = null; me = null; store.del(SESS_KEY); store.del(SESSION_KEY); rtClose(); }
+  let refreshing = null;
+  function refresh() {
+    if (!sess) return Promise.resolve();
+    if (!refreshing) refreshing = authPost('token?grant_type=refresh_token', { refresh_token: sess.refresh_token })
+      .then(setSession, e => { if (e.status >= 400 && e.status < 500) clearSession(); else throw e; })
+      .finally(() => { refreshing = null; });
+    return refreshing;
+  }
+  async function fresh() { if (sess && sess.expires_at - 90 < Date.now() / 1000) await refresh(); }
+
+  /* ---------- conversões base de dados <-> objetos do site ---------- */
+  const BASE_IDS = { p: new Set(CATALOG_BASE.products.map(x => x.id)), f: new Set(CATALOG_BASE.farmers.map(x => x.id)), r: new Set(CATALOG_BASE.restaurants.map(x => x.id)) };
+  const J = v => JSON.stringify(v);
+  const toProd = r => {
+    const p = Object.assign({}, r.extra || {}, { id: r.id, cat: r.categoria, name: { pt: r.nome_pt, en: r.nome_en }, price: +r.preco, unit: r.unidade, farmer: r.agricultor,
+      season: [r.epoca_inicio, r.epoca_fim], essential: !!r.essencial, organic: !!r.biologico, desc: { pt: r.desc_pt || '', en: r.desc_en || '' } });
+    if (r.desenho) p.art = r.desenho;
+    if (r.colheita != null && r.colheita !== '') p.harvest = /^\d+$/.test(r.colheita) ? +r.colheita : r.colheita;
+    if (r.icone) p.icon = r.icone;
+    if (r.fora_stock) p.outOfStock = true;
+    if (Array.isArray(r.divisao)) p.split = r.divisao;
+    if (!BASE_IDS.p.has(r.id)) p.isNew = true;
+    return p;
+  };
+  const fromProd = (p, ordem) => ({ id: p.id, categoria: p.cat, nome_pt: p.name.pt, nome_en: p.name.en || p.name.pt, preco: +p.price, unidade: p.unit || 'kg', agricultor: p.farmer || null,
+    desenho: p.art || null, icone: p.icon || null, epoca_inicio: p.season[0], epoca_fim: p.season[1], colheita: p.harvest == null ? null : String(p.harvest),
+    essencial: !!p.essential, biologico: !!p.organic, fora_stock: !!p.outOfStock, divisao: p.split || null, desc_pt: (p.desc || {}).pt || '', desc_en: (p.desc || {}).en || '', ordem });
+  const PROD_PATCH = { price: v => ({ preco: +v }), season: v => ({ epoca_inicio: v[0], epoca_fim: v[1] }), split: v => ({ divisao: v || null }), outOfStock: v => ({ fora_stock: !!v }),
+    name: v => ({ nome_pt: v.pt, nome_en: v.en }), desc: v => ({ desc_pt: v.pt, desc_en: v.en }), unit: v => ({ unidade: v }), farmer: v => ({ agricultor: v }), icon: v => ({ icone: v || null }),
+    essential: v => ({ essencial: !!v }), organic: v => ({ biologico: !!v }), harvest: v => ({ colheita: v == null ? null : String(v) }), art: v => ({ desenho: v || null }), cat: v => ({ categoria: v }) };
+  const toFarmer = r => Object.assign({}, r.extra || {}, { id: r.id, name: r.nome, farm: r.quinta, place: r.localidade, region: r.regiao, lat: r.lat, lon: r.lon, since: r.desde,
+    crop: r.cultura, seed: r.semente, story: { pt: r.historia_pt || '', en: r.historia_en || '' } }, BASE_IDS.f.has(r.id) ? {} : { isNew: true });
+  const fromFarmer = (f, ordem) => ({ id: f.id, nome: f.name, quinta: f.farm, localidade: f.place || '', regiao: f.region || 'aveiro', lat: f.lat, lon: f.lon, desde: f.since || null,
+    cultura: f.crop || null, semente: f.seed || 0, historia_pt: (f.story || {}).pt || '', historia_en: (f.story || {}).en || '', extra: f.island ? { island: f.island } : {}, ordem });
+  const FARMER_PATCH = { name: v => ({ nome: v }), farm: v => ({ quinta: v }), place: v => ({ localidade: v }), story: v => ({ historia_pt: v.pt || '', historia_en: v.en || '' }), region: v => ({ regiao: v }), lat: v => ({ lat: v }), lon: v => ({ lon: v }) };
+  const toRest = r => Object.assign({}, r.extra || {}, { id: r.id, name: r.nome, lat: r.lat, lon: r.lon, kind: { pt: r.tipo_pt, en: r.tipo_en }, area: { pt: r.zona_pt, en: r.zona_en },
+    dish: { pt: r.prato_pt, en: r.prato_en }, since: r.desde, dishes: r.pratos || [] }, BASE_IDS.r.has(r.id) ? {} : { isNew: true });
+  const bi = (o, k) => (o || {})[k] || '';
+  const fromRest = (r, ordem) => ({ id: r.id, nome: r.name, lat: r.lat, lon: r.lon, tipo_pt: bi(r.kind, 'pt'), tipo_en: bi(r.kind, 'en'), zona_pt: bi(r.area, 'pt'), zona_en: bi(r.area, 'en'),
+    prato_pt: bi(r.dish, 'pt'), prato_en: bi(r.dish, 'en'), desde: r.since || null, pratos: r.dishes || [], ordem });
+  const REST_PATCH = { name: v => ({ nome: v }), kind: v => ({ tipo_pt: bi(v, 'pt'), tipo_en: bi(v, 'en') }), area: v => ({ zona_pt: bi(v, 'pt'), zona_en: bi(v, 'en') }),
+    dish: v => ({ prato_pt: bi(v, 'pt'), prato_en: bi(v, 'en') }), dishes: v => ({ pratos: v || [] }), since: v => ({ desde: v }), lat: v => ({ lat: v }), lon: v => ({ lon: v }) };
+  const toDay = r => ({ date: r.dia, farmer: r.agricultor, crop: r.cultura, what: { pt: r.produto_pt, en: r.produto_en }, time: r.horario, spots: r.lugares });
+  const fromDay = d => ({ dia: d.date, agricultor: d.farmer, cultura: d.crop || null, produto_pt: (d.what || {}).pt || '', produto_en: (d.what || {}).en || '', horario: d.time, lugares: +d.spots });
+  const mapPatch = (o, map) => Object.entries(o).reduce((acc, [k, v]) => (map[k] ? Object.assign(acc, map[k](v)) : acc), {});
+
+  const toSub = r => ({ id: r.id, box: r.caixa, size: r.tamanho, kg: +r.kg, freq: r.frequencia, day: r.dia, deliver: r.entrega, point: r.ponto, address: r.morada, discovery: !!r.descoberta,
+    pay: r.pagamento, locked: +r.preco_guardado, start: r.inicio, first: r.primeira, status: r.estado, lowered: !!r.baixou });
+  const fromSub = (s, uid) => ({ id: s.id, user_id: uid, caixa: s.box, tamanho: s.size, kg: s.kg, frequencia: s.freq, dia: s.day, entrega: s.deliver, ponto: s.point || '', morada: s.address || '',
+    descoberta: !!s.discovery, pagamento: s.pay || null, preco_guardado: +s.locked, inicio: s.start, primeira: s.first, estado: s.status || 'ativa', baixou: !!s.lowered });
+  const toUser = (p, subs, harv) => ({ _id: p.id, name: p.nome, username: p.username, phone: p.telemovel || '', email: p.email || '', role: p.papel, created: p.criado,
+    address: p.morada || null, favs: p.favoritos || [], exclude: p.excluidos || [], notify: p.avisos || [], partner: p.parceiro || null,
+    subs: subs.map(toSub), harvests: harv.map(h => ({ date: h.dia, people: h.pessoas })) });
+  const fromUser = u => ({ telemovel: u.phone || null, nome: u.name, email: u.email || null, morada: u.address || null, favoritos: u.favs || [], excluidos: u.exclude || [], avisos: u.notify || [],
+    parceiro: u.partner || null, papel: u.role });
+  const uidOf = un => (un && USERS[un] ? USERS[un]._id : null);
+  const toOrder = r => {
+    const o = { num: r.num, user: r.username || null, name: r.nome, phone: r.telemovel, email: r.email || '', created: r.criada, slot: r.data_entrega, day: r.dia, deliver: r.entrega,
+      window: r.janela || '', point: r.ponto || '', address: r.morada || '', items: r.artigos || [], subtotal: +r.subtotal, fee: +r.taxa, total: +r.total, pay: r.pagamento, notes: r.notas || '', status: r.estado };
+    if (r.etapa != null) o.stage = r.etapa;
+    if (r.preferencias) o.prefs = r.preferencias;
+    if (r.user_id) o._uid = r.user_id;
+    return o;
+  };
+  const fromOrder = o => ({ num: o.num, user_id: o._uid || uidOf(o.user), username: o.user || null, nome: o.name, telemovel: o.phone, email: o.email || null, criada: o.created,
+    data_entrega: o.slot, dia: o.day, entrega: o.deliver, janela: o.window || null, ponto: o.point || null, morada: o.address || null, artigos: o.items, subtotal: +o.subtotal, taxa: +o.fee,
+    total: +o.total, pagamento: o.pay || null, notas: o.notes || null, estado: o.status || 'ativa', etapa: typeof o.stage === 'number' ? o.stage : null, preferencias: o.prefs || null });
+  const toReq = r => {
+    const x = { id: r.id, type: r.tipo, created: r.criado, status: r.estado, user: r.username || null, fields: r.campos || {} };
+    if (r.parceiro) x.partnerUser = r.parceiro; if (r.encomenda) x.order = r.encomenda; if (r.aprovado) x.approved = true; if (r.produto_id) x.productId = r.produto_id; if (r.user_id) x._uid = r.user_id;
+    return x;
+  };
+  const fromReq = r => ({ id: r.id, tipo: r.type, criado: r.created, estado: r.status, user_id: r._uid || uidOf(r.user), username: r.user || null, parceiro: r.partnerUser || null,
+    encomenda: r.order || null, aprovado: !!r.approved, produto_id: r.productId || null, campos: r.fields || {} });
+  const diff = (prev, row) => { const d = {}; for (const k of Object.keys(row)) if (J(row[k]) !== J(prev[k])) d[k] = row[k]; return Object.keys(d).length ? d : null; };
+  const fill = (arr, items) => { arr.length = 0; items.forEach(x => arr.push(x)); };
+
+  /* ---------- ler da base de dados ---------- */
+  async function loadCatalog() {
+    const [prods, farms, rests, days, boxes, oc] = await Promise.all([
+      rest('GET', 'produtos', 'select=*&order=ordem.asc,id.asc'), rest('GET', 'agricultores', 'select=*&order=ordem.asc,id.asc'),
+      rest('GET', 'restaurantes', 'select=*&order=ordem.asc,id.asc'), rest('GET', 'dias_colhe', 'select=*&order=dia.asc'),
+      rest('GET', 'caixas_precos', 'select=*&order=caixa.asc,ordem.asc'), rest('GET', 'colhe_ocupacao', 'select=*')]);
+    if (!prods.length) { N.error = 'catalogo-vazio'; return; }
+    fill(FARMERS, farms.map(toFarmer));
+    fill(PRODUCTS, PRODUCTS.filter(p => p.cat === 'caixas').concat(prods.map(toProd)));
+    fill(RESTAURANTS, rests.map(toRest));
+    fill(HARVEST_DAYS, days.map(toDay));
+    Object.keys(snap).filter(k => k.startsWith('d:')).forEach(k => delete snap[k]);
+    HARVEST_DAYS.forEach(d => { snap['d:' + d.date] = J(fromDay(d)); });
+    boxes.forEach(r => { const list = BOX_SIZES[r.caixa]; if (!list) return; const z = list.find(x => x.s === r.tamanho); if (z) { z.price = +r.preco; z.kg = +r.kg; } else list.push({ s: r.tamanho, kg: +r.kg, price: +r.preco }); });
+    PRODUCTS.filter(p => p.cat === 'caixas' && BOX_SIZES[p.id]).forEach(b => { b.price = Math.min(...BOX_SIZES[b.id].map(z => z.price)); });
+    ocup = Object.fromEntries(oc.map(x => [x.dia, +x.pessoas]));
+  }
+  function guestOrders() { return store.get(GUEST_KEY, []).filter(x => x && x.num); }
+  function rememberGuestOrder(o) { const list = guestOrders().filter(x => x.num !== o.num); list.unshift({ num: o.num, phone: o.phone }); store.set(GUEST_KEY, list.slice(0, 10)); }
+  async function loadPeople() {
+    Object.keys(snap).filter(k => /^[usohr]:/.test(k)).forEach(k => delete snap[k]);
+    let perfis = [], subs = [], harv = [], ords = [], reqs = [];
+    if (sess) {
+      [perfis, subs, harv, ords, reqs] = await Promise.all([rest('GET', 'perfis', 'select=*&order=criado.asc,username.asc'), rest('GET', 'subscricoes', 'select=*&order=criada.asc'),
+        rest('GET', 'inscricoes_colhe', 'select=*'), rest('GET', 'encomendas', 'select=*&order=criada.desc&limit=1000'), rest('GET', 'pedidos', 'select=*&order=criado.desc&limit=1000')]);
+      me = perfis.find(p => p.id === sess.user_id) || null;
+      if (!me) { clearSession(); perfis = subs = harv = ords = reqs = []; }
+    }
+    const users = {};
+    perfis.forEach(p => { users[p.username] = toUser(p, subs.filter(s => s.user_id === p.id), harv.filter(h => h.user_id === p.id)); });
+    for (const k of Object.keys(USERS)) if (!users[k]) delete USERS[k];
+    for (const [k, u] of Object.entries(users)) { if (USERS[k]) { Object.keys(USERS[k]).forEach(x => delete USERS[k][x]); Object.assign(USERS[k], u); } else USERS[k] = u; }
+    Object.values(USERS).forEach(u => {
+      snap['u:' + u._id] = J(fromUser(u));
+      u.subs.forEach(s => { snap['s:' + s.id] = J(fromSub(s, u._id)); });
+      u.harvests.forEach(h => { snap[`h:${u._id}|${h.date}`] = J({ pessoas: +h.people }); });
+    });
+    if (me) store.set(SESSION_KEY, me.username); else store.del(SESSION_KEY);
+    ownAtLoad = {}; if (me && USERS[me.username]) USERS[me.username].harvests.forEach(h => { ownAtLoad[h.date] = +h.people; });
+    const orders = ords.map(toOrder), keepGuest = ORDERS.filter(o => o._tel && !orders.some(x => x.num === o.num));
+    fill(ORDERS, orders.concat(keepGuest));
+    ORDERS.forEach(o => { snap['o:' + o.num] = J(fromOrder(o)); });
+    fill(REQUESTS, reqs.map(toReq));
+    REQUESTS.forEach(r => { snap['r:' + r.id] = J(fromReq(r)); });
+  }
+  async function loadGuestOrders() {
+    for (const g of guestOrders().slice(0, 5)) { if (ORDERS.some(o => o.num === g.num && !o._tel)) continue; try { await lookupOrder(g.num, g.phone); } catch (e) {} }
+  }
+  async function lookupOrder(num, phone) {
+    const row = await rpc('encomenda_por_numero', { p_num: normOrder(num), p_tel: normPhone(phone) });
+    if (!row) return null;
+    const o = Object.assign(toOrder(row), { _tel: normPhone(phone) });
+    const i = ORDERS.findIndex(x => x.num === o.num); if (i >= 0) ORDERS.splice(i, 1, o); else ORDERS.push(o);
+    snap['o:' + o.num] = J(fromOrder(o));
+    return o;
+  }
+
+  /* ---------- gravar na base de dados (por ordem, uma operação de cada vez) ---------- */
+  const queue = (fn, quiet) => (chain = chain.then(fn).catch(e => { if (!quiet) report(e); }));
+  function report(e) {
+    console.error('[Daqui/Supabase]', e);
+    const m = String(e && e.message || e);
+    if (typeof toast === 'function') toast(/lugares/.test(m) ? m : T(`Não foi possível guardar na base de dados: ${m}`, `Could not save to the database: ${m}`));
+    reloadSoon(true, true);
+  }
+  const isAdmin = () => !!(me && me.papel === 'admin');
+  const canWriteUser = u => sess && (isAdmin() || u._id === sess.user_id);
+  const canWriteOrder = o => sess && (isAdmin() || (o._uid ? o._uid === sess.user_id : !!(me && o.user === me.username)));
+  N.syncUsers = () => queue(async () => {
+    for (const u of Object.values(USERS)) {
+      if (!u._id || !canWriteUser(u)) continue;
+      const row = fromUser(u), k = 'u:' + u._id, d = diff(JSON.parse(snap[k] || '{}'), row);
+      if (d) { await rest('PATCH', 'perfis', 'id=' + eq(u._id), d, 'return=minimal'); snap[k] = J(row); }
+      const subs = u.subs || [];
+      for (const s of subs) {
+        const r = fromSub(s, u._id), sk = 's:' + s.id;
+        if (!snap[sk]) { await rest('POST', 'subscricoes', '', r, 'return=minimal'); snap[sk] = J(r); continue; }
+        const sd = diff(JSON.parse(snap[sk]), r); if (sd) { await rest('PATCH', 'subscricoes', 'id=' + eq(s.id), sd, 'return=minimal'); snap[sk] = J(r); }
+      }
+      for (const sk of Object.keys(snap)) if (sk.startsWith('s:') && JSON.parse(snap[sk]).user_id === u._id && !subs.some(s => 's:' + s.id === sk)) {
+        await rest('DELETE', 'subscricoes', 'id=' + eq(sk.slice(2)), undefined, 'return=minimal'); delete snap[sk];
+      }
+      const hs = u.harvests || [], pre = `h:${u._id}|`;
+      for (const h of hs) {
+        const hk = pre + h.date, r = { pessoas: +h.people || 1 };
+        if (!snap[hk]) { await rest('POST', 'inscricoes_colhe', '', { user_id: u._id, dia: h.date, pessoas: r.pessoas }, 'return=minimal'); snap[hk] = J(r); }
+        else if (snap[hk] !== J(r)) { await rest('PATCH', 'inscricoes_colhe', `user_id=${eq(u._id)}&dia=${eq(h.date)}`, r, 'return=minimal'); snap[hk] = J(r); }
+      }
+      for (const hk of Object.keys(snap)) if (hk.startsWith(pre) && !hs.some(h => pre + h.date === hk)) {
+        await rest('DELETE', 'inscricoes_colhe', `user_id=${eq(u._id)}&dia=${eq(hk.slice(pre.length))}`, undefined, 'return=minimal'); delete snap[hk];
+      }
+    }
+  });
+  N.syncOrders = () => queue(async () => {
+    for (const o of ORDERS) {
+      const row = fromOrder(o), k = 'o:' + o.num;
+      if (!snap[k]) {
+        if (!sess) row.user_id = null;
+        await rest('POST', 'encomendas', '', row, 'return=minimal'); snap[k] = J(row);
+        if (!sess) { o._tel = o.phone; rememberGuestOrder(o); }
+        continue;
+      }
+      const d = diff(JSON.parse(snap[k]), row); if (!d) continue;
+      if (canWriteOrder(o)) await rest('PATCH', 'encomendas', 'num=' + eq(o.num), d, 'return=minimal');
+      else if (o._tel) {
+        const res = await rpc('gerir_encomenda', { p_num: o.num, p_tel: o._tel, p_data: d.data_entrega || null, p_dia: d.dia || null, p_cancelar: d.estado === 'cancelada' });
+        if (!res) throw new Error(T('a encomenda já não pode ser alterada', 'the order can no longer be changed'));
+      }
+      snap[k] = J(row);
+    }
+  });
+  N.syncRequests = () => queue(async () => {
+    for (const r of REQUESTS) {
+      const row = fromReq(r), k = 'r:' + r.id;
+      if (!snap[k]) { if (!sess) row.user_id = null; await rest('POST', 'pedidos', '', row, 'return=minimal'); snap[k] = J(row); continue; }
+      const d = diff(JSON.parse(snap[k]), row);
+      if (d && isAdmin()) { await rest('PATCH', 'pedidos', 'id=' + eq(r.id), d, 'return=minimal'); snap[k] = J(row); }
+    }
+  });
+  N.pushCatalog = ch => queue(async () => {
+    const up = 'resolution=merge-duplicates,return=minimal';
+    for (const f of ch.newFarmers || []) await rest('POST', 'agricultores', 'on_conflict=id', fromFarmer(f, FARMERS.length), up);
+    for (const [id, o] of Object.entries(ch.farmers || {})) { const p = mapPatch(o, FARMER_PATCH); if (Object.keys(p).length) await rest('PATCH', 'agricultores', 'id=' + eq(id), p, 'return=minimal'); }
+    for (const p of ch.newProducts || []) await rest('POST', 'produtos', 'on_conflict=id', fromProd(p, PRODUCTS.length), up);
+    for (const [id, o] of Object.entries(ch.products || {})) { const p = mapPatch(o, PROD_PATCH); if (Object.keys(p).length) await rest('PATCH', 'produtos', 'id=' + eq(id), p, 'return=minimal'); }
+    for (const [box, sizes] of Object.entries(ch.boxes || {})) for (const [sz, price] of Object.entries(sizes)) await rest('PATCH', 'caixas_precos', `caixa=${eq(box)}&tamanho=${eq(sz)}`, { preco: +price }, 'return=minimal');
+    if (Array.isArray(ch.harvestDays)) {
+      for (const d of ch.harvestDays) { const row = fromDay(d), k = 'd:' + d.date; if (snap[k] !== J(row)) { await rest('POST', 'dias_colhe', 'on_conflict=dia', row, up); snap[k] = J(row); } }
+      for (const k of Object.keys(snap)) if (k.startsWith('d:') && !ch.harvestDays.some(d => 'd:' + d.date === k)) { await rest('DELETE', 'dias_colhe', 'dia=' + eq(k.slice(2)), undefined, 'return=minimal'); delete snap[k]; }
+    }
+    for (const r of ch.newRestaurants || []) await rest('POST', 'restaurantes', 'on_conflict=id', fromRest(r, RESTAURANTS.length), up);
+    for (const [id, o] of Object.entries(ch.restaurants || {})) { const p = mapPatch(o, REST_PATCH); if (Object.keys(p).length) await rest('PATCH', 'restaurantes', 'id=' + eq(id), p, 'return=minimal'); }
+  });
+  N.deleteProduct = id => queue(() => rest('DELETE', 'produtos', 'id=' + eq(id), undefined, 'return=minimal'));
+
+  /* ---------- contas ---------- */
+  N.signIn = async (login, pass) => {
+    const l = String(login || '').trim(), tel = normPhone(l);
+    const email = l.includes('@') ? l.toLowerCase() : await rpc('email_para_login', { p_login: l, p_tel: tel.length >= 9 ? tel : '' });
+    if (!email) return null;
+    try { setSession(await authPost('token?grant_type=password', { email, password: pass })); }
+    catch (e) { if (e.status === 400 || e.status === 401) return null; throw e; }
+    await loadPeople(); rtConnect();
+    return currentUser();
+  };
+  N.register = async data => {
+    const e = registerErrors(data, false); if (Object.keys(e).length) return { errors: e };
+    const un = String(data.username).trim().toLowerCase(), ph = normPhone(data.phone), email = String(data.email).trim().toLowerCase();
+    const av = await rpc('login_disponivel', { p_username: un, p_tel: ph, p_email: email });
+    if (!av.username) e.username = 'taken'; if (!av.telemovel) e.phone = 'taken'; if (!av.email) e.email = 'taken';
+    if (Object.keys(e).length) return { errors: e };
+    let d;
+    try { d = await authPost('signup', { email, password: data.pass, data: { username: un, nome: String(data.name).trim(), telemovel: ph, papel: data.role, parceiro: partnerFromForm(data) } }); }
+    catch (err) {
+      const c = `${err.code || ''} ${err.message}`;
+      if (/already|exists|registered/i.test(c)) return { errors: { email: 'taken' } };
+      if (/email/i.test(c) && /invalid/i.test(c)) return { errors: { email: 'fmt' } };
+      if (/password/i.test(c)) return { errors: { pass: 'weak' } };
+      throw err;
+    }
+    if (!d || !d.access_token) return { errors: { email: 'confirm' } };
+    setSession(d); await loadPeople();
+    const u = currentUser(); if (u) partnerRequest(u);
+    rtConnect();
+    return u ? { user: u } : { errors: { auth: 1 } };
+  };
+  N.signOut = () => { if (sess) http('POST', '/auth/v1/logout', {}, undefined, true).catch(() => {}); setTimeout(clearSession, 0); };
+
+  /* ---------- tempo real (Supabase Realtime, protocolo Phoenix) ---------- */
+  let ws = null, wsRef = 0, hb = null, retry = null, closing = false;
+  function rtConnect() {
+    if (!sess || !N.on || typeof WebSocket === 'undefined' || (ws && ws.readyState < 2)) return;
+    closing = false;
+    try { ws = new WebSocket(BASE.replace(/^http/, 'ws') + '/realtime/v1/websocket?apikey=' + encodeURIComponent(KEY) + '&vsn=1.0.0'); } catch (e) { return; }
+    ws.onopen = () => {
+      const ref = String(++wsRef);
+      ws.send(J({ topic: 'realtime:daqui', event: 'phx_join', ref, join_ref: ref, payload: { config: { broadcast: { ack: false, self: false }, presence: { key: '', enabled: false },
+        postgres_changes: TABLES.map(t => ({ event: '*', schema: 'public', table: t })), private: false }, access_token: sess && sess.access_token } }));
+      clearInterval(hb); hb = setInterval(() => { if (ws && ws.readyState === 1) ws.send(J({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: String(++wsRef) })); }, 25000);
+    };
+    ws.onmessage = ev => {
+      let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+      if (m.topic !== 'realtime:daqui') return;
+      if (m.event === 'phx_reply' && m.payload && m.payload.status === 'error') setLive(false);
+      if (m.event === 'system' && m.payload) setLive(m.payload.status === 'ok');
+      if (m.event === 'phx_reply' && m.payload && m.payload.status === 'ok' && m.payload.response && m.payload.response.postgres_changes) setLive(true);
+      if (m.event === 'postgres_changes') { const t = m.payload && m.payload.data && m.payload.data.table; reloadSoon(CATALOG_TABLES.includes(t), !CATALOG_TABLES.includes(t)); }
+      if (m.event === 'phx_error' || m.event === 'phx_close') setLive(false);
+    };
+    ws.onclose = () => { setLive(false); clearInterval(hb); if (!closing) { clearTimeout(retry); retry = setTimeout(rtConnect, 15000); } };
+    ws.onerror = () => {};
+  }
+  function rtToken() { if (ws && ws.readyState === 1 && sess) ws.send(J({ topic: 'realtime:daqui', event: 'access_token', payload: { access_token: sess.access_token }, ref: String(++wsRef) })); }
+  function rtClose() { closing = true; clearTimeout(retry); clearInterval(hb); if (ws) try { ws.close(); } catch (e) {} ws = null; setLive(false); }
+  function setLive(v) { if (N.live === v) return; N.live = v; $$('[data-nuvem-estado]').forEach(el => { el.outerHTML = N.badge(); }); }
+
+  /* ---------- voltar a ler e redesenhar sem estragar o que a pessoa está a fazer ---------- */
+  let wantCat = false, wantPeople = false, timer = null;
+  function reloadSoon(cat, people) {
+    wantCat = wantCat || cat; wantPeople = wantPeople || people;
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const c = wantCat, p = wantPeople; wantCat = wantPeople = false;
+      const before = signature();
+      queue(async () => { if (c) await loadCatalog(); if (p) await loadPeople(); if (signature() !== before) softRender(); }, true);
+    }, 500);
+  }
+  const signature = () => J([PRODUCTS, FARMERS, RESTAURANTS, HARVEST_DAYS, BOX_SIZES, USERS, ORDERS, REQUESTS, ocup]);
+  function softRender() {
+    const busy = $('#modal.on') || (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) && document.activeElement.closest('main'));
+    if (busy) { setTimeout(softRender, 2500); return; }
+    if (typeof rerenderKeep === 'function') rerenderKeep(); else { const y = scrollY; render(); scrollTo(0, y); }
+  }
+
+  /* ---------- arranque ---------- */
+  N.start = async () => {
+    if (!N.configured) return;
+    sess = store.get(SESS_KEY, null);
+    try {
+      if (sess) await fresh();
+      await loadCatalog();
+      N.on = true;
+      try { await loadPeople(); }
+      catch (e) { if (e.status === 401 || e.status === 403) { clearSession(); await loadPeople(); } else throw e; }
+      await loadGuestOrders();
+      if (sess) { rtConnect(); setInterval(() => { if (sess && document.visibilityState === 'visible' && !N.live) reloadSoon(true, true); }, POLL); }
+      setInterval(() => { if (sess && document.visibilityState === 'visible' && N.live) reloadSoon(true, true); }, 60000);   // segurança, mesmo com tempo real
+    } catch (e) {
+      console.warn('[Daqui/Supabase] sem ligação, a usar os dados do navegador:', e);
+      N.on = false; N.failed = true; N.error = String(e && e.message || e);
+    }
+  };
+
+  /* ---------- usado pelo resto do site ---------- */
+  N.isAdmin = isAdmin;
+  N.harvestPeople = date => { const own = me && USERS[me.username] ? (USERS[me.username].harvests || []).filter(h => h.date === date).reduce((a, h) => a + (+h.people || 1), 0) : 0; return Math.max(0, (ocup[date] || 0) - (ownAtLoad[date] || 0) + own); };
+  N.newOrderNumber = () => { let n; do { n = 'DQ' + (100000 + Math.floor(Math.random() * 900000)); } while (ORDERS.some(o => o.num === n)); return n; };
+  N.newRequestId = () => 'P-' + (Date.now().toString(36) + Math.floor(Math.random() * 36).toString(36)).toUpperCase().slice(-7);
+  N.lookupOrder = (num, phone) => lookupOrder(num, phone);
+  N.refresh = () => reloadSoon(true, true);
+  N.flush = () => chain;
+  N.badge = () => !N.on ? '' : `<span class="nuvem-estado${N.live ? ' live' : ''}" data-nuvem-estado>${N.live ? T('Base de dados: tempo real', 'Database: live') : T(`Base de dados: atualiza a cada ${POLL / 1000} s`, `Database: refreshes every ${POLL / 1000} s`)}</span>`;
+  N.banner = () => {
+    if (N.failed) return `<div class="nuvem-aviso" role="status">${T('Sem ligação à base de dados. Está a ver os dados guardados neste navegador.', 'No connection to the database. You are seeing the data stored in this browser.')}</div>`;
+    if (N.on && N.error === 'catalogo-vazio' && isAdmin()) return `<div class="nuvem-aviso" role="status">${T('A base de dados não tem produtos: corra supabase/02-catalogo.sql no SQL Editor do Supabase.', 'The database has no products: run supabase/02-catalogo.sql in the Supabase SQL Editor.')}</div>`;
+    return '';
+  };
+  return N;
+})();
