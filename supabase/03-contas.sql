@@ -1,6 +1,6 @@
 -- =====================================================================================
 -- Daqui — 3 de 3: CONTAS DE DEMONSTRAÇÃO e atividade de exemplo
--- Gerado por ferramentas/gerar-sql.js em 2026-11-16 04:07. Não edite à mão: mude js/data.js e volte a gerar.
+-- Gerado por ferramentas/gerar-sql.js em 2026-11-16 05:52. Não edite à mão: mude js/data.js e volte a gerar.
 -- Onde: Supabase → SQL Editor → New query → colar este ficheiro inteiro → Run.
 -- =====================================================================================
 -- Cria 27 contas (palavras-passe abaixo), com o perfil, as subscrições, as inscrições no Colhe Connosco,

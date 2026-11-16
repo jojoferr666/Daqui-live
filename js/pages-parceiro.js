@@ -19,6 +19,8 @@ PAGES.parceiro = () => {
   return { title: T('Área de parceiro', 'Partner area'), html };
 };
 
+/* as secções da área de parceiro, uma a uma (a app para telemóvel mostra cada uma no seu separador) */
+function partnerSections(u) { const html = u.partner.kind === 'agricultor' ? farmerArea(u) : restaurantArea(u); return html.split('<section class="acc-sec"').slice(1).map(x => '<section class="acc-sec"' + x); }
 function myRequests(u, type) { return REQUESTS.filter(r => r.partnerUser === u.username && r.type === type).sort((a, b) => b.created.localeCompare(a.created)); }
 function reqStatus(r) { return r.approved ? `<span class="status ativa">${T('Aprovado', 'Approved')}</span>` : r.status === 'tratado' ? `<span class="status pausada">${T('Analisado', 'Reviewed')}</span>` : `<span class="status prog">${T('Em análise', 'Under review')}</span>`; }
 

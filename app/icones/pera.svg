@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 140">
+  <!-- Pera da Daqui (o "A" do logótipo): fonte dos ícones da app. Dourado #F2C663 com brilho #F8DE9C e pé #4B3B12. -->
+  <path d="M50 26c.6-7.4 2.6-13.2 6.6-17.4" fill="none" stroke="#4B3B12" stroke-width="4.4" stroke-linecap="round"/>
+  <path d="M50 24c8 0 12 7 13 16 1.5 12 9 18 16 30 7 12 9 26 5 40-5 16-18 24-34 24s-29-8-34-24c-4-14-2-28 5-40 7-12 14.5-18 16-30 1-9 5-16 13-16z" fill="#F2C663"/>
+  <path d="M30 62c-8 12-13 26-11 42 2 16 13 26 25 29-11-9-17-21-18-35-1-14 1-26 4-36z" fill="#F8DE9C"/>
+</svg>

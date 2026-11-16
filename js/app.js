@@ -11,11 +11,11 @@ const REQ_NOTE = () => NUVEM.on ? T('O pedido já está no painel da equipa Daqu
 const EMAIL = 'ola@daqui.pt';
 
 /* ---------- páginas e ligações (/produtos em vez de #produtos) ---------- */
-const QS = new URLSearchParams(location.search);
+let QS = new URLSearchParams(location.search);   // let: a app (js/app-movel.js) muda-o em cada ecrã
 /* produtos e agricultores criados na gestão não têm pasta própria: abrem como /produtos?id=… e /agricultores?id=… */
 const PAGE_DOC = document.body.dataset.page || 'inicio';
-const PAGE = PAGE_DOC === 'produtos' && QS.get('id') ? 'produto' : PAGE_DOC === 'agricultores' && QS.get('id') ? 'agricultor' : PAGE_DOC;
-const PID = document.body.dataset.id || QS.get('id') || '';
+let PAGE = PAGE_DOC === 'produtos' && QS.get('id') ? 'produto' : PAGE_DOC === 'agricultores' && QS.get('id') ? 'agricultor' : PAGE_DOC;
+let PID = document.body.dataset.id || QS.get('id') || '';
 const R = document.body.dataset.root || './';
 const FILE = location.protocol === 'file:';
 function href(path = '', query = '') {
@@ -96,7 +96,7 @@ function trackHTML(o) {
   const when = o.deliver === 'home' ? `${slotLabel(o.slot)}, ${o.window}` : `${slotLabel(o.slot)}, ${DISTRIBUTION.days[o.day]?.pickup || ''}, ${o.point}`;
   return `<div class="track">
     <div class="row-between"><h3>${T('Encomenda', 'Order')} ${o.num}</h3><span class="status ${st === 4 ? 'pausada' : 'ativa'}">${stageName(o)}</span></div>
-    ${st === 4 ? `<p class="muted">${T('Esta encomenda foi cancelada.', 'This order was cancelled.')}</p>` : `<ol class="steps-track">${names.map((n, i) => `<li class="${i < st ? 'done' : i === st ? 'now' : ''}"><span class="dot">${i < st ? icon('check', 14) : ''}</span>${n}</li>`).join('')}</ol>`}
+    ${st === 4 ? `<p class="muted">${T('Esta encomenda foi cancelada.', 'This order was cancelled.')}</p>` : `<ol class="steps-track">${names.map((n, i) => `<li class="${i < st || st === 3 ? 'done' : i === st ? 'now' : ''}"><span class="dot">${i < st || st === 3 ? icon('check', 14) : ''}</span>${n}</li>`).join('')}</ol>`}
     <dl class="dl cols2">
       <div><dt>${o.deliver === 'home' ? T('Entrega', 'Delivery') : T('Levantamento', 'Pick-up')}</dt><dd>${esc(when)}</dd></div>
       ${o.deliver === 'home' ? `<div><dt>${T('Morada', 'Address')}</dt><dd>${esc(o.address)}</dd></div>` : ''}
@@ -444,6 +444,7 @@ new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(applyInlineStyle
 /* arranque: com base de dados, primeiro lê os dados (js/nuvem.js) e só depois desenha a página */
 document.addEventListener('DOMContentLoaded', () => {
   $('#drawer').setAttribute('inert', '');
+  if (PAGE_DOC === 'app') return;   // a app para telemóvel arranca em js/app-movel.js
   const first = () => { render(); if (location.hash) setTimeout(() => document.getElementById(location.hash.slice(1))?.scrollIntoView(), 60); };
   if (!NUVEM.configured) return first();
   $('#app').innerHTML = `<div class="loading-page" role="status"><img src="${LOGO_GOLD}" alt="Daqui" width="140"><p>${T('A carregar…', 'Loading…')}</p></div>`;

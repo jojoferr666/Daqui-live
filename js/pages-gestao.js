@@ -36,7 +36,7 @@ function tabPedidos() {
     <div class="row-between"><div class="row-gap"><span class="rtype t-${r.type}">${types[r.type] || r.type}</span><b>${r.id}</b>${r.order ? `<span class="small">${T('Encomenda', 'Order')} ${r.order}</span>` : ''}${r.approved ? `<span class="status ativa">${T('Aprovado', 'Approved')}</span>` : ''}</div>
       <span class="small muted">${fdate(r.created, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
     <p class="small mt-s">${T('De', 'From')}: ${who(r)}</p>
-    <dl class="req-f">${Object.entries(r.fields || {}).map(([k, v]) => `<div><dt>${esc(labels[k] || k)}</dt><dd>${esc(reqValue(k, v))}</dd></div>`).join('')}</dl>
+    <dl class="req-f">${Object.entries(r.fields || {}).map(([k, v]) => `<div><dt>${esc(labels[k] || k)}</dt><dd>${k === 'photo' && /^https?:\/\//.test(v) ? `<a href="${esc(v)}" target="_blank" rel="noopener"><img class="req-photo" src="${esc(v)}" alt="${T('Fotografia da incidência', 'Problem photo')}"></a>` : esc(reqValue(k, v))}</dd></div>`).join('')}</dl>
     <div class="row-btns">${canApprove(r) ? `<button class="btn btn-green btn-sm" data-approve="${r.id}">${icon('check', 16)}${approveLabel(r)}</button>` : ''}
       <button class="btn btn-line btn-sm ${r.status === 'novo' ? 'c-campo' : ''}" data-req-toggle="${r.id}">${r.status === 'novo' ? T('Marcar como tratado', 'Mark as handled') : T('Reabrir', 'Reopen')}</button></div></article>`;
   return `<section class="acc-sec"><h2>${T('Pedidos e avisos', 'Requests and alerts')}</h2>

@@ -251,7 +251,15 @@ PAGE_EVENTS.submit.push((e, f) => {
   const notFound = () => { addRequest(type, { order: normOrder(num), phone: normPhone(phone), result: 'notfound' }); err.hidden = false; err.textContent = T(`Não encontrámos a encomenda ${normOrder(num)} com esse telemóvel. Confirme os dados ou ligue para o ${PHONE}.`, `We couldn't find order ${normOrder(num)} with that mobile number. Check the details or call ${PHONE}.`); };
   const proceed = o => {
     if (kind === 'issue') {
-      const r = addRequest('incidencia', { product: $('#h-prod', f).value, what: $('#h-d', f).value.trim(), remedy: $('input[name="h-pref"]:checked', f).value, photo: $('#h-f', f).files[0]?.name || '' }, { order: o.num });
+      const file = $('#h-f', f).files[0];
+      /* com base de dados, a fotografia vai para o Storage e o pedido guarda o endereço */
+      if (file && NUVEM.on && !f.dataset.uploaded) {
+        const btn = $('button[type="submit"]', f); btn.disabled = true;
+        NUVEM.uploadPhoto(file, (file.name.split('.').pop() || 'jpg').toLowerCase()).then(url => { f.dataset.uploaded = url; proceed(o); }, err => { console.error(err); btn.disabled = false; f.dataset.uploaded = '-'; toast(T('Não foi possível enviar a fotografia; a incidência segue sem ela.', 'The photo could not be sent; the report goes without it.')); proceed(o); });
+        return;
+      }
+      const photo = f.dataset.uploaded && f.dataset.uploaded !== '-' ? f.dataset.uploaded : file?.name || '';
+      const r = addRequest('incidencia', { product: $('#h-prod', f).value, what: $('#h-d', f).value.trim(), remedy: $('input[name="h-pref"]:checked', f).value, photo }, { order: o.num });
       $('.mbody').innerHTML = `<h2>${T('Incidência registada', 'Problem reported')}</h2><p class="note done mt">${icon('check', 22)}<span><b>${T('Referência', 'Reference')} ${r.id}</b>, ${T('encomenda', 'order')} ${o.num}. ${T('A equipa responde em 24 horas úteis.', 'The team replies within one working day.')}<br>${REQ_NOTE()}</span></p>`;
       return;
     }

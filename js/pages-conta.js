@@ -4,7 +4,7 @@
 let authMode = QS.get('modo') === 'registo' ? 'registo' : 'entrar';
 let authErr = {}, authVals = {};
 let authRole = ['agricultor', 'restaurante'].includes(QS.get('tipo')) ? QS.get('tipo') : 'cliente';
-const NEXT = (() => { const n = QS.get('next') || ''; return /^[a-z0-9\-/]*$/.test(n) ? n : ''; })();
+let NEXT = (() => { const n = QS.get('next') || ''; return /^[a-z0-9\-/]*$/.test(n) ? n : ''; })();
 function afterLogin() {
   const pending = store.get('daqui-pending-sub', null);
   if (NEXT.startsWith('subscricao/') && pending) return go(NEXT, 'retomar=1');
@@ -171,7 +171,7 @@ PAGES.conta = () => {
   </div><div class="spacer"></div>`;
   return { title: T('A minha conta', 'My account'), html, after: () => { const sec = QS.get('sec'); if (sec) setTimeout(() => document.getElementById(sec)?.scrollIntoView(), 60); } };
 };
-const BACK = (() => { const b = QS.get('voltar') || ''; return /^subscricao\/[a-z0-9-]+$/.test(b) ? b : ''; })();
+let BACK = (() => { const b = QS.get('voltar') || ''; return /^subscricao\/[a-z0-9-]+$/.test(b) ? b : ''; })();
 function rerenderKeep(sel) { const y = scrollY; render(); scrollTo(0, y); if (sel) $(sel)?.focus(); }
 PAGE_EVENTS.click.push((e, t, d) => {
   if (PAGE !== 'conta') return; const u = currentUser(); if (!u) return;

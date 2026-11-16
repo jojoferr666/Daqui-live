@@ -287,16 +287,18 @@ begin
 end $$;
 create trigger proteger_restaurante before update on public.restaurantes for each row execute function public.proteger_restaurante();
 
--- cliente: só pode mudar o dia de entrega ou cancelar; o estado (etapa) é da gestão
+-- cliente: pode mudar o dia de entrega, cancelar e confirmar o levantamento ("deslizar" na app);
+-- o resto do estado (etapa) é da gestão
 create or replace function public.proteger_encomenda() returns trigger
 language plpgsql set search_path = public as $$
-declare d date := new.data_entrega; dd text := new.dia; e text := new.estado;
+declare d date := new.data_entrega; dd text := new.dia; e text := new.estado; et int := new.etapa;
 begin
   new.atualizada := now();
   if not public.vem_do_site() or public.eh_admin() then return new; end if;
   if tg_op = 'INSERT' then new.estado := 'ativa'; new.etapa := null; new.criada := now(); return new; end if;
   new := old; new.data_entrega := d; new.dia := dd; new.atualizada := now();
   if e = 'cancelada' then new.estado := 'cancelada'; end if;
+  if et = 3 and old.entrega = 'pickup' and old.estado = 'ativa' and (old.data_entrega <= current_date or old.etapa = 2) then new.etapa := 3; end if;
   return new;
 end $$;
 create trigger proteger_encomenda before insert or update on public.encomendas for each row execute function public.proteger_encomenda();

@@ -1,6 +1,6 @@
 -- =====================================================================================
 -- Daqui — 2 de 3: CATÁLOGO (agricultores, produtos, caixas, restaurantes, dias Colhe Connosco)
--- Gerado por ferramentas/gerar-sql.js em 2026-11-16 04:07. Não edite à mão: mude js/data.js e volte a gerar.
+-- Gerado por ferramentas/gerar-sql.js em 2026-11-16 05:52. Não edite à mão: mude js/data.js e volte a gerar.
 -- Onde: Supabase → SQL Editor → New query → colar este ficheiro inteiro → Run.
 -- =====================================================================================
 

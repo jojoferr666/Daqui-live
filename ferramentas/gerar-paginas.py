@@ -88,4 +88,38 @@ for pid in products:
     if not (SITE / 'docs' / 'analises' / f'{pid}.pdf').exists():
         print(f'Aviso: falta o boletim docs/analises/{pid}.pdf (corra ferramentas/gerar-analises.py ou coloque um PDF com esse nome)')
 
+# app para telemóvel (web app em /app e base da app Android): mesmos scripts do site + os da app
+APP_SCRIPTS = SCRIPTS + ['app-config', 'app-nativo', 'app-movel']
+app_dir = SITE / 'app'; app_dir.mkdir(exist_ok=True)
+(app_dir / 'index.html').write_text(f'''<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>Daqui</title>
+<meta name="description" content="App da Daqui: fruta e legumes do campo para a sua casa.">
+<meta name="theme-color" content="#3C6104">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="../img/favicon.png">
+<link rel="apple-touch-icon" href="icones/icone-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="{FONTS}" rel="stylesheet">
+<link rel="stylesheet" href="../css/styles.css">
+<link rel="stylesheet" href="../css/app.css">
+</head>
+<body class="app" data-page="app" data-root="../">
+<div id="app"><noscript><p class="wrap">A app precisa de JavaScript. / The app needs JavaScript.</p></noscript></div>
+<div id="overlay" class="overlay"></div>
+<aside id="drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="cart-title"></aside>
+<div id="modal" class="modal"><div class="scrim"></div><div class="box" role="dialog" aria-modal="true"></div></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+{chr(10).join(f'<script src="../js/{x}.js"></script>' for x in APP_SCRIPTS)}
+</body>
+</html>
+''', encoding='utf-8')
+count += 1
+
 print(f'{count} páginas geradas ({len(products) + len(boxes)} produtos, {len(farmers)} agricultores, {len(boxes)} caixas).')

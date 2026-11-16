@@ -9,6 +9,8 @@ O site é **estático** (HTML, CSS e JavaScript) e funciona de duas maneiras:
 
 Todo o site existe em **português e inglês** (botões PT / EN no cabeçalho).
 
+O site inclui também a **app para telemóvel** (pasta `app/`): a mesma loja, contas e painéis, organizados em ecrãs de app com separadores em baixo. Abre no navegador do telemóvel em `<endereço do site>/app/` e é a base da app Android (projeto `daqui-android`, com o seu próprio `LEIA-ME-APP.md`). Ver secção 23.
+
 Índice
 
 1. [Abrir o site](#1-abrir-o-site)
@@ -33,6 +35,7 @@ Todo o site existe em **português e inglês** (botões PT / EN no cabeçalho).
 20. [Receitas: alterações frequentes](#20-receitas-alterações-frequentes)
 21. [Testar e resolver problemas](#21-testar-e-resolver-problemas)
 22. [Limites desta demonstração](#22-limites-desta-demonstração)
+23. [App para telemóvel](#23-app-para-telemóvel)
 
 ---
 
@@ -72,6 +75,8 @@ No menu da esquerda, **SQL Editor** → *New query*. Para cada ficheiro da pasta
 | `supabase/01-estrutura.sql` | Cria as tabelas, as regras de acesso (quem pode ler e mudar o quê), as funções usadas pelo site e liga o tempo real. O Supabase avisa que tem operações destrutivas (*destructive operations*): confirme. |
 | `supabase/02-catalogo.sql` | Põe na base de dados os 94 produtos, 15 agricultores, 8 restaurantes, preços das caixas e dias Colhe Connosco de `js/data.js`. |
 | `supabase/03-contas.sql` | Cria as 27 contas de demonstração (clientes, gestão, uma por quinta e uma por restaurante), com subscrições, inscrições, encomendas e pedidos de exemplo. |
+| `supabase/04-app.sql` | Para a app: telemóveis que recebem notificações, fotografias das incidências (Storage, pasta `incidencias`) e "deslizar para confirmar" o levantamento. Corra também se só usar o site: as fotografias das incidências do site usam-no. |
+| `supabase/05-notificacoes.sql` | Só para as notificações da app Android, **depois** de criar a função `notificar` (ver `LEIA-ME-APP.md` do projeto `daqui-android`). Antes de correr, troque as 2 linhas marcadas com `<<<`. |
 
 Para confirmar: **Table Editor** → tabela `perfis` deve ter 27 linhas e `produtos` 94.
 
@@ -223,7 +228,10 @@ img/produtos/<id>.svg       ícone de cada produto (pode editar ou substituir)
 docs/analises/<id>.pdf      boletim de análises de cada produto
 js/                         ver tabela abaixo
 ferramentas/                scripts para gerar páginas, ícones, análises e o SQL da base de dados
-supabase/                   01-estrutura.sql, 02-catalogo.sql, 03-contas.sql (secção 2)
+app/index.html              a app para telemóvel (secção 23); app/manifest.webmanifest, app/sw.js, app/icones/
+css/app.css                 estilos só da app (tudo começa por body.app)
+supabase/                   01-estrutura.sql … 05-notificacoes.sql (secção 2)
+supabase/funcoes/notificar/index.ts   função do Supabase que envia as notificações (Firebase)
 LEIA-ME.md                  este ficheiro
 ```
 
@@ -245,6 +253,9 @@ Os ficheiros JavaScript carregam **por esta ordem** (definida em `ferramentas/ge
 | `js/pages-conta.js` | Entrar / Criar conta (cliente, agricultor, restaurante) e A minha conta |
 | `js/pages-gestao.js` | Painel da conta de gestão (aparece dentro de `/conta`) |
 | `js/pages-parceiro.js` | Área de parceiro (`/parceiro`) para agricultores e restaurantes |
+| `js/app-config.js` | Só na app: endereço público do site (para abrir os PDF) e se as notificações estão ligadas. Na app Android este ficheiro é gerado pelo `npm run preparar` |
+| `js/app-nativo.js` | Só na app Android: câmara, localização, notificações, botão "voltar", ecrã de arranque e barras do sistema (Capacitor). No navegador não faz nada |
+| `js/app-movel.js` | Só na app: rotas `#/…`, separadores por tipo de conta, ecrãs próprios (Início, Loja, Mapa, Conta, encomenda com "deslizar para confirmar", incidência com fotografia) e reaproveitamento das páginas do site |
 
 ## 6. Como uma página é desenhada
 
@@ -546,3 +557,16 @@ O OnionShare não deixa o site ligar-se a outros endereços, por isso a base de 
 - Sem a base de dados, contas, encomendas e pedidos vivem num só navegador. Com o Supabase ficam online, mas continua a ser uma demonstração: não há pagamentos reais nem envio de e-mails ou SMS.
 - No modo local, as palavras-passe têm hash com sal, mas qualquer pessoa com acesso ao navegador pode ver os dados. Com o Supabase, as palavras-passe são guardadas pelo Supabase Auth. Mesmo assim, não use palavras-passe verdadeiras numa demonstração.
 - Pagamentos, mensagens e notificações são simulados.
+
+## 23. App para telemóvel
+
+A app está em `app/index.html` e usa **os mesmos ficheiros** `js/` e `css/styles.css` do site, mais `css/app.css`, `js/app-config.js`, `js/app-nativo.js` e `js/app-movel.js`. Tudo o que muda no site (produtos, preços, textos, base de dados) muda também na app.
+
+- **Separadores**: cliente e visitante: Início, Loja, Mapa, Conta (o cabaz é o botão redondo). Agricultor: Produtos, Colhe, Propostas, Conta. Restaurante: Perfil, Pratos, Loja, Conta. Gestão: Pedidos, Encomendas, Catálogo, Mais.
+- **Primeira abertura**: escolha da língua e três ecrãs de boas-vindas (para os voltar a ver: apagar `daqui-app-boas-vindas` do `localStorage`).
+- **Levantamento**: numa encomenda com levantamento, no dia (ou quando a gestão a marca como pronta), o cliente desliza o botão e a encomenda passa a "Levantada" (também no painel da gestão).
+- **Incidências com fotografia**: com a base de dados ligada, a fotografia vai para o Storage do Supabase (`04-app.sql`) e aparece no painel da gestão.
+- **No navegador**: abra `<endereço do site>/app/` no telemóvel; no Chrome, menu ⋮ → *Adicionar ao ecrã principal* instala-a como app (sem câmara nativa nem notificações; a fotografia usa o seletor de ficheiros).
+- **Como app Android**: projeto `daqui-android` (Capacitor). Os passos estão no `LEIA-ME-APP.md` desse projeto.
+- **Gerar a página**: `app/index.html` é escrita por `python3 ferramentas/gerar-paginas.py`, como as outras páginas (lista `APP_SCRIPTS`).
+

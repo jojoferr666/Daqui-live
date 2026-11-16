@@ -316,12 +316,13 @@ PAGE_EVENTS.click.push((e, t, d) => {
 
 /* ---------------- CONFIGURAR SUBSCRIÇÃO (/subscricao/<caixa>) ---------------- */
 const PENDING_KEY = 'daqui-pending-sub';
-let cfg = (() => {
+function makeCfg() {
   const sizes = BOX_SIZES[PID] || [];
   const base = { box: PID, size: (sizes.find(s => s.s === QS.get('tamanho')) || sizes[0] || {}).s, freq: ['sem', 'quinz', 'mens'].includes(QS.get('freq')) ? QS.get('freq') : 'sem', day: 'qui', deliver: 'pickup', point: PICKUP_POINTS[1], address: '', postal: '', town: '', discovery: true, pay: 'mbway' };
   if (QS.get('retomar')) { const p = store.get(PENDING_KEY, null); if (p && p.box === PID) return Object.assign(base, p); }
   return base;
-})();
+}
+let cfg = makeCfg();
 function subSummary() {
   const p = P(PID), sz = BOX_SIZES[PID].find(s => s.s === cfg.size), fee = cfg.deliver === 'home' ? DELIVERY_FEE : 0;
   const per = { sem: 52 / 12, quinz: 26 / 12, mens: 13 / 12 }[cfg.freq], first = firstDelivery(cfg.day), lockEnd = addDays(today(), 365);

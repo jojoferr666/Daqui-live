@@ -27,6 +27,7 @@ const NUVEM = (() => {
     if (auth) await fresh();
     const h = { apikey: KEY, 'Content-Type': 'application/json' };
     if (auth && sess) h.Authorization = 'Bearer ' + sess.access_token;
+    else if (/^eyJ/.test(KEY)) h.Authorization = 'Bearer ' + KEY;   // chave "anon" antiga (JWT); as chaves sb_publishable_ vão só no apikey
     if (prefer) h.Prefer = prefer;
     const r = await fetch(BASE + path, { method, headers: h, body: body === undefined ? undefined : JSON.stringify(body), keepalive: method !== 'GET' });   // keepalive: termina mesmo que a página mude
     const txt = await r.text(); let data = null;
@@ -229,6 +230,10 @@ const NUVEM = (() => {
       }
       const d = diff(JSON.parse(snap[k]), row); if (!d) continue;
       if (canWriteOrder(o)) await rest('PATCH', 'encomendas', 'num=' + eq(o.num), d, 'return=minimal');
+      else if (o._tel && d.etapa === 3) {
+        const res = await rpc('confirmar_levantamento', { p_num: o.num, p_tel: o._tel });
+        if (!res) throw new Error(T('ainda não é possível confirmar o levantamento', 'collection cannot be confirmed yet'));
+      }
       else if (o._tel) {
         const res = await rpc('gerir_encomenda', { p_num: o.num, p_tel: o._tel, p_data: d.data_entrega || null, p_dia: d.dia || null, p_cancelar: d.estado === 'cancelada' });
         if (!res) throw new Error(T('a encomenda já não pode ser alterada', 'the order can no longer be changed'));
@@ -258,6 +263,41 @@ const NUVEM = (() => {
     for (const r of ch.newRestaurants || []) await rest('POST', 'restaurantes', 'on_conflict=id', fromRest(r, RESTAURANTS.length), up);
     for (const [id, o] of Object.entries(ch.restaurants || {})) { const p = mapPatch(o, REST_PATCH); if (Object.keys(p).length) await rest('PATCH', 'restaurantes', 'id=' + eq(id), p, 'return=minimal'); }
   });
+  /* fotografias das incidências: pasta pública "incidencias" do Storage (supabase/04-app.sql) */
+  /* fotografias de telemóvel podem ter vários MB: reduz para no máximo 1600 px em JPEG antes de enviar (limite do balde: 5 MB) */
+  function shrink(blob) {
+    return new Promise(ok => {
+      if (!blob || !/^image\//.test(blob.type || 'image/') || typeof document === 'undefined') return ok(null);
+      const url = URL.createObjectURL(blob), img = new Image();
+      img.onload = () => {
+        try {
+          const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+          if (k === 1 && blob.size < 1500000) { URL.revokeObjectURL(url); return ok(null); }
+          const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+          c.toBlob(b => ok(b && b.size < blob.size ? b : null), 'image/jpeg', 0.82);
+        } catch (e) { ok(null); }
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); ok(null); };
+      img.src = url;
+    });
+  }
+  N.uploadPhoto = async (blob, ext = 'jpg') => {
+    const small = await shrink(blob);
+    if (small) { blob = small; ext = 'jpg'; }
+    if (!/^(jpe?g|png|webp)$/i.test(ext)) ext = 'jpg';
+    await fresh();
+    const name = `${new Date().toISOString().slice(0, 7)}/${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const h = { apikey: KEY, 'Content-Type': blob.type || 'image/jpeg', 'x-upsert': 'false' };
+    if (sess) h.Authorization = 'Bearer ' + sess.access_token; else if (/^eyJ/.test(KEY)) h.Authorization = 'Bearer ' + KEY;
+    const r = await fetch(`${BASE}/storage/v1/object/incidencias/${name}`, { method: 'POST', headers: h, body: blob });
+    if (!r.ok) throw new Error('Storage ' + r.status + ' ' + (await r.text()).slice(0, 120));
+    return `${BASE}/storage/v1/object/public/incidencias/${name}`;
+  };
+  /* telemóveis que recebem notificações (app Android) */
+  N.registerDevice = (token, platform) => (sess ? rpc('registar_dispositivo', { p_token: token, p_plataforma: platform || 'android', p_lingua: lang }) : Promise.resolve());
+  N.unregisterDevice = token => (sess ? rpc('remover_dispositivo', { p_token: token }).catch(() => {}) : Promise.resolve());
+  N.hasSession = () => !!sess;
   N.deleteProduct = id => queue(() => rest('DELETE', 'produtos', 'id=' + eq(id), undefined, 'return=minimal'));
 
   /* ---------- contas ---------- */
@@ -291,7 +331,14 @@ const NUVEM = (() => {
     rtConnect();
     return u ? { user: u } : { errors: { auth: 1 } };
   };
-  N.signOut = () => { if (sess) http('POST', '/auth/v1/logout', {}, undefined, true).catch(() => {}); setTimeout(clearSession, 0); };
+  N.signOut = () => {
+    if (sess) {
+      const h = { apikey: KEY, 'Content-Type': 'application/json', Authorization: 'Bearer ' + sess.access_token };
+      if (N.pushToken) fetch(BASE + '/rest/v1/rpc/remover_dispositivo', { method: 'POST', headers: h, body: J({ p_token: N.pushToken }), keepalive: true }).catch(() => {});
+      fetch(BASE + '/auth/v1/logout', { method: 'POST', headers: h, keepalive: true }).catch(() => {});
+    }
+    clearSession();
+  };
 
   /* ---------- tempo real (Supabase Realtime, protocolo Phoenix) ---------- */
   let ws = null, wsRef = 0, hb = null, retry = null, closing = false;
@@ -350,7 +397,9 @@ const NUVEM = (() => {
       try { await loadPeople(); }
       catch (e) { if (e.status === 401 || e.status === 403) { clearSession(); await loadPeople(); } else throw e; }
       await loadGuestOrders();
-      if (sess) { rtConnect(); setInterval(() => { if (sess && document.visibilityState === 'visible' && !N.live) reloadSoon(true, true); }, POLL); }
+      if (sess) rtConnect();
+      // na app não há mudança de página depois de entrar, por isso a verificação corre sempre (só lê com sessão iniciada)
+      setInterval(() => { if (sess && document.visibilityState === 'visible' && !N.live) reloadSoon(true, true); }, POLL);
       setInterval(() => { if (sess && document.visibilityState === 'visible' && N.live) reloadSoon(true, true); }, 60000);   // segurança, mesmo com tempo real
     } catch (e) {
       console.warn('[Daqui/Supabase] sem ligação, a usar os dados do navegador:', e);
