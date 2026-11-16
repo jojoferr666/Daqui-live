@@ -1,4 +1,4 @@
-# Site da Daqui — documentação
+# Site da Daqui — documentation
 
 Site de demonstração da Daqui (fruta e legumes do campo para casa), feito para a cadeira de Inglês: Projeto de Aplicação (IPA) da Universidade de Aveiro. Empresa, pessoas, preços e contactos são fictícios.
 
