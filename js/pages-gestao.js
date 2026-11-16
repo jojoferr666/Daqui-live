@@ -262,7 +262,7 @@ function tabColhe() {
       <td><button class="rm" data-day-del="${d.date}" aria-label="${T('Apagar dia', 'Delete day')}">${icon('trash', 18)}</button></td></tr>`; }).join('')}</tbody></table></div>
     <form class="form panel mt" data-newday novalidate><h3>${T('Adicionar dia', 'Add a day')}</h3>
       <div class="row"><div class="field"><label for="nd-date">${T('Data', 'Date')}</label><input id="nd-date" type="date" min="${iso(today())}" required></div>
-        <div class="field"><label for="nd-time">${T('Horário', 'Time')}</label><select id="nd-time">${TIME_OPTS.map(t => `<option>${t}</option>`).join('')}</select></div></div>
+        <div class="field"><label for="nd-ini">${T('Início', 'Start')}</label><input id="nd-ini" type="time" value="10:00" required></div><div class="field"><label for="nd-fim">${T('Fim', 'End')}</label><input id="nd-fim" type="time" value="13:00" required></div></div>
       <div class="row"><div class="field"><label for="nd-farm">${T('Quinta', 'Farm')}</label><select id="nd-farm" data-nd-farm>${FARMERS.map(f => `<option value="${f.id}">${esc(f.farm)} (${esc(f.name)})</option>`).join('')}</select></div>
         <div class="field"><label for="nd-prod">${T('Produto a colher', 'Produce to pick')}</label><select id="nd-prod">${prodOpts(f0.id)}</select></div></div>
       <div class="field"><label for="nd-spots">${T('Máximo de participantes', 'Maximum participants')}</label><input id="nd-spots" type="number" min="1" value="30" required></div>
