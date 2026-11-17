@@ -1,0 +1,5 @@
+<!-- Ícone de Goiaba -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><circle cx="58" cy="68" r="40" fill="#A8BE46"/><circle cx="58" cy="68" r="34" fill="#F8DCD2"/><circle cx="58" cy="68" r="21" fill="#F08A8A"/>
+<circle cx="58" cy="52" r="2" fill="#F8E6A0"/><circle cx="70" cy="58" r="2" fill="#F8E6A0"/><circle cx="73" cy="70" r="2" fill="#F8E6A0"/><circle cx="66" cy="80" r="2" fill="#F8E6A0"/><circle cx="50" cy="80" r="2" fill="#F8E6A0"/><circle cx="43" cy="70" r="2" fill="#F8E6A0"/><circle cx="46" cy="58" r="2" fill="#F8E6A0"/><circle cx="58" cy="68" r="2" fill="#F8E6A0"/>
+<path d="M28 56c-3 8-2 18 2 26-5-6-6-18-2-26z" fill="#FFFFFF" opacity=".5"/>
+<path d="M82 34c4-4 8-6 12-6" stroke="#5A3A2C" stroke-width="3" fill="none" stroke-linecap="round"/><path transform="translate(84 28) rotate(-20) scale(1.1)" d="M0 0c6-9 16-11 22-8-5 8-14 11-22 8z" fill="#6E8B2E"/></svg>

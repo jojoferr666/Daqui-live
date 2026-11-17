@@ -1,0 +1,5 @@
+<!-- Ícone de Cardo -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><g stroke="#B8C890" stroke-width="9" stroke-linecap="round" fill="none"><path d="M60 106V38"/><path d="M48 106L32 44"/><path d="M72 106L88 44"/><path d="M38 106L18 56"/><path d="M82 106L102 56"/></g>
+<g stroke="#8DA066" stroke-width="1.6" fill="none" stroke-linecap="round"><path d="M60 100V42M48 100L34 48M72 100L86 48M38 100L22 58M82 100L98 58"/></g>
+<path d="M32 44c-8-6-10-14-4-22 6 4 10 12 4 22zM60 38c-8-8-8-18 0-28 8 10 8 20 0 28zM88 44c8-6 10-14 4-22-6 4-10 12-4 22zM18 56c-8-2-12-8-10-16 8 2 12 8 10 16zM102 56c8-2 12-8 10-16-8 2-12 8-10 16z" fill="#8FA878"/>
+<path d="M36 92h48" stroke="#8C6A3C" stroke-width="5" stroke-linecap="round"/></svg>

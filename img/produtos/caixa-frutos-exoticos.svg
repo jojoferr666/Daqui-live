@@ -1,0 +1,6 @@
+<!-- Ícone de Cabaz de frutos exóticos/tropicais -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M60 30c-8-6-12-16-8-24 7 5 10 12 8 24zM60 30c8-6 12-16 8-24-7 5-10 12-8 24zM60 30c-2-8 0-16 0-22 4 6 2 14 0 22z" fill="#5E8A2B"/>
+<ellipse cx="60" cy="48" rx="17" ry="22" fill="#D9A62E"/><path d="M48 38l24 24M48 50l20 20M72 38L48 62M72 50L52 70" stroke="#A87A18" stroke-width="2" fill="none" stroke-linecap="round"/>
+<ellipse cx="32" cy="54" rx="17" ry="14" fill="#F2B138" transform="rotate(-25 32 54)"/><ellipse cx="38" cy="52" rx="9" ry="8" fill="#E0503A" opacity=".5" transform="rotate(-25 38 52)"/>
+<path d="M76 56c-6-4-8-12-4-18 6 0 10 6 12 12 4-4 8-6 12-4 2 8-4 14-12 14-4 2-6 0-8-4z" fill="#5E8A2B" opacity="0"/><ellipse cx="88" cy="54" rx="13" ry="16" fill="#D6336C"/><path d="M76 48c-6-2-8-6-8-10 5 0 8 4 8 10zM100 48c6-2 8-6 8-10-5 0-8 4-8 10zM88 38c-3-4-3-8 0-12 3 4 3 8 0 12z" fill="#5E8A2B"/>
+<path d="M18 62h84l-6 42c-1 4-4 6-8 6H32c-4 0-7-2-8-6z" fill="#C8975A"/><path d="M22 80h76M25 96h70" stroke="#8E6434" stroke-width="2.4" fill="none"/><rect x="14" y="56" width="92" height="10" rx="4" fill="#A8743C"/><path d="M30 70l-2 8" stroke="#E0B880" stroke-width="3" stroke-linecap="round"/></svg>

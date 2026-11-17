@@ -1,0 +1,7 @@
+<!-- Ícone de Cabaz de ervas aromáticas -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><g stroke-linecap="round" fill="none"><path d="M44 62L26 26" stroke="#7A9A3A" stroke-width="2.6"/><path d="M56 62L50 16" stroke="#7A5A3A" stroke-width="2.6"/><path d="M66 62L74 18" stroke="#7A9A3A" stroke-width="2.6"/><path d="M78 62L96 30" stroke="#6E9A38" stroke-width="3.4"/></g>
+<path d="M26 28c-6 0-10-6-8-14 8 0 10 6 8 14zM26 28c6 0 10-6 8-14-8 0-10 6-8 14z" fill="#3F6B2A"/>
+<g stroke="#4F7A5A" stroke-width="3" stroke-linecap="round" fill="none"><path d="M50 56l-9-4M50 56l9-4M50 44l-9-4M50 44l9-4M50 32l-8-4M50 32l8-4M50 20l-6-3M50 20l6-3"/></g>
+<g fill="#8DB04A"><ellipse cx="64" cy="52" rx="8" ry="5" transform="rotate(-30 64 52)"/><ellipse cx="82" cy="44" rx="8" ry="5" transform="rotate(30 82 44)"/><ellipse cx="66" cy="38" rx="8" ry="5" transform="rotate(-30 66 38)"/><ellipse cx="78" cy="26" rx="8" ry="5" transform="rotate(30 78 26)"/><ellipse cx="72" cy="18" rx="6" ry="7"/></g>
+<g stroke="#5E8A2B" stroke-width="3" stroke-linecap="round"><path d="M92 56L84 38M96 56L100 36M90 58L106 44"/></g><circle cx="84" cy="36" r="5" fill="#B77AC9"/><circle cx="100" cy="34" r="5" fill="#B77AC9"/>
+<path d="M18 62h84l-6 42c-1 4-4 6-8 6H32c-4 0-7-2-8-6z" fill="#C8975A"/><path d="M22 80h76M25 96h70" stroke="#8E6434" stroke-width="2.4" fill="none"/><rect x="14" y="56" width="92" height="10" rx="4" fill="#A8743C"/><path d="M30 70l-2 8" stroke="#E0B880" stroke-width="3" stroke-linecap="round"/></svg>

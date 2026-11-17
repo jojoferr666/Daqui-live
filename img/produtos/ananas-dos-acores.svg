@@ -1,0 +1,6 @@
+<!-- Ícone de Ananás dos Açores -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><defs><clipPath id="a"><ellipse cx="60" cy="74" rx="28" ry="36"/></clipPath></defs>
+<path d="M60 40c-10-8-14-20-10-30 8 6 12 16 10 30zM60 40c10-8 14-20 10-30-8 6-12 16-10 30zM60 40c-14-2-22-8-26-16 10 0 20 6 26 16zM60 40c14-2 22-8 26-16-10 0-20 6-26 16z" fill="#5E8A2B"/><path d="M60 40c-3-10-1-22 0-30 4 8 3 20 0 30z" fill="#6E8B2E"/>
+<ellipse cx="60" cy="74" rx="28" ry="36" fill="#D9A62E"/>
+<g clip-path="url(#a)" stroke="#A87A18" stroke-width="2" fill="none"><path d="M30 50l50 52M30 68l40 42M40 40l50 52M30 86l24 26M56 38l32 34"/><path d="M90 50l-50 52M90 68l-40 42M80 40l-50 52M90 86l-24 26M64 38l-32 34"/></g>
+<path d="M38 60c-3 10-2 22 4 32-8-8-10-22-4-32z" fill="#F0CC6A" opacity=".8"/></svg>

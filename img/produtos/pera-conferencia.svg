@@ -1,0 +1,5 @@
+<!-- Ícone de Pera Conferência -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M60 16c8 0 11 9 11 20 0 14 6 20 12 34 8 20-4 38-23 38S29 90 37 70c6-14 12-20 12-34 0-11 3-20 11-20z" fill="#A5A83A"/>
+<path d="M52 40c-4 16-12 26-16 36 0 8 3 14 8 18-4-14 6-24 12-40z" fill="#8C6A2A" opacity=".5"/>
+<path d="M54 22c-2 12-2 22-6 34 4-6 8-14 10-34z" fill="#CBD068"/>
+<path d="M60 17c0-6 2-10 5-13" stroke="#4A3A1A" stroke-width="3" fill="none" stroke-linecap="round"/><path transform="translate(63 12) rotate(-5) scale(.9)" d="M0 0c6-9 16-11 22-8-5 8-14 11-22 8z" fill="#6E8B2E"/></svg>

@@ -1,0 +1,5 @@
+<!-- Ícone de Kumquat -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><ellipse cx="40" cy="80" rx="17" ry="21" fill="#F29A22"/><ellipse cx="78" cy="82" rx="16" ry="20" fill="#F5A82A"/><ellipse cx="58" cy="56" rx="16" ry="20" fill="#F2A024"/>
+<ellipse cx="32" cy="72" rx="4" ry="8" fill="#F8C66A"/><ellipse cx="71" cy="74" rx="4" ry="8" fill="#FAD283"/><ellipse cx="51" cy="48" rx="4" ry="8" fill="#F8C66A"/>
+<circle cx="44" cy="86" r="1.1" fill="#D97F10"/><circle cx="38" cy="92" r="1.1" fill="#D97F10"/><circle cx="82" cy="88" r="1.1" fill="#D97F10"/><circle cx="76" cy="94" r="1.1" fill="#D97F10"/><circle cx="62" cy="62" r="1.1" fill="#D97F10"/><circle cx="57" cy="68" r="1.1" fill="#D97F10"/>
+<path d="M58 36c0-6 1-10 4-12" stroke="#4A5A1A" stroke-width="2.6" fill="none" stroke-linecap="round"/><path transform="translate(60 28) rotate(-20)" d="M0 0c6-9 16-11 22-8-5 8-14 11-22 8z" fill="#6E8B2E"/></svg>

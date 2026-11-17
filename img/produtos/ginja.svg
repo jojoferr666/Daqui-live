@@ -1,0 +1,5 @@
+<!-- Ícone de Ginja -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M44 66c0-18 8-30 24-38M78 62c0-14-2-24-10-34" stroke="#5A7A2A" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+<circle cx="44" cy="84" r="20" fill="#8E1B2E"/><circle cx="78" cy="80" r="18" fill="#A0233A"/>
+<circle cx="37" cy="77" r="5" fill="#D8606E" opacity=".8"/><circle cx="71" cy="74" r="4.5" fill="#E07A86" opacity=".8"/>
+<path transform="translate(66 28) rotate(-10)" d="M0 0c6-9 16-11 22-8-5 8-14 11-22 8z" fill="#6E8B2E"/></svg>

@@ -1,0 +1,5 @@
+<!-- Ícone de Pera General Leclerc -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M60 26c10 0 14 8 14 16 0 8 10 14 16 28 8 20-6 36-30 36S22 90 30 70c6-14 16-20 16-28 0-8 4-16 14-16z" fill="#D9C35A"/>
+<path d="M36 78c4-6 10-6 14-2 2 6-2 12-8 14-6-2-8-8-6-12zM74 70c6-2 10 2 10 8-2 6-8 8-12 6-2-4-2-10 2-14z" fill="#A8803A" opacity=".5"/>
+<path d="M36 70c-3 10 0 20 8 26-4-8-4-18 0-26z" fill="#EEDC8C"/>
+<path d="M60 27c0-8 2-13 6-17" stroke="#4A3A1A" stroke-width="3" fill="none" stroke-linecap="round"/><path transform="translate(64 16) scale(.9)" d="M0 0c6-9 16-11 22-8-5 8-14 11-22 8z" fill="#6E8B2E"/></svg>

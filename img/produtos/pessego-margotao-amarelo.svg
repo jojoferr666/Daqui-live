@@ -1,0 +1,5 @@
+<!-- Ícone de Pêssego margotão amarelo -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M60 34c-22-4-40 10-40 36 0 22 18 36 40 36s40-14 40-36c0-26-18-40-40-36z" fill="#F0B33A"/><ellipse cx="78" cy="74" rx="18" ry="26" fill="#E27B2E" opacity=".55"/>
+<path d="M60 36c-6 14-6 44 2 68" stroke="#C98A22" stroke-width="2" fill="none"/>
+<path d="M32 58c-4 10-2 22 4 30-6-8-8-20-4-30z" fill="#F8D472"/>
+<path d="M60 36c0-8 2-13 6-16" stroke="#5A3A2C" stroke-width="3" fill="none" stroke-linecap="round"/><path transform="translate(64 26) rotate(-10)" d="M0 0c6-9 16-11 22-8-5 8-14 11-22 8z" fill="#6E8B2E"/></svg>

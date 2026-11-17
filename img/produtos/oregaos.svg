@@ -1,0 +1,5 @@
+<!-- Ícone de Orégãos -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M60 110V18" stroke="#7A9A3A" stroke-width="3" stroke-linecap="round"/>
+<g fill="#6E8B2E"><ellipse cx="47" cy="92" rx="11" ry="7" transform="rotate(-30 47 92)"/><ellipse cx="73" cy="78" rx="11" ry="7" transform="rotate(30 73 78)"/><ellipse cx="47" cy="64" rx="11" ry="7" transform="rotate(-30 47 64)"/><ellipse cx="73" cy="50" rx="11" ry="7" transform="rotate(30 73 50)"/><ellipse cx="50" cy="36" rx="10" ry="6.5" transform="rotate(-30 50 36)"/></g>
+<g fill="#8DB04A"><ellipse cx="73" cy="94" rx="10" ry="6.5" transform="rotate(30 73 94)"/><ellipse cx="47" cy="78" rx="10" ry="6.5" transform="rotate(-30 47 78)"/><ellipse cx="73" cy="64" rx="10" ry="6.5" transform="rotate(30 73 64)"/><ellipse cx="47" cy="50" rx="10" ry="6.5" transform="rotate(-30 47 50)"/><ellipse cx="70" cy="34" rx="10" ry="6.5" transform="rotate(30 70 34)"/><ellipse cx="60" cy="20" rx="7" ry="9"/></g>
+<path d="M60 20v76" stroke="#A8C070" stroke-width="1.4" stroke-linecap="round" opacity=".5"/></svg>

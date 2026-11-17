@@ -1,0 +1,6 @@
+<!-- Ícone de Pêssego larga caroço -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><circle cx="60" cy="68" r="40" fill="#E58A2E"/><circle cx="60" cy="68" r="35" fill="#F4C04A"/><circle cx="60" cy="68" r="23" fill="#E8742E" opacity=".55"/>
+<ellipse cx="60" cy="68" rx="14" ry="19" fill="#8C5A3A"/>
+<path d="M54 58c4 8 4 16 0 22M66 58c-4 8-4 16 0 22" stroke="#6A3E24" stroke-width="2" fill="none" stroke-linecap="round"/>
+<path d="M30 56c-3 8-2 16 2 22-5-6-6-16-2-22z" fill="#FAD97E"/>
+<path d="M70 28c2-6 6-9 10-10" stroke="#5A3A2C" stroke-width="3" fill="none" stroke-linecap="round"/><path transform="translate(74 22) rotate(-10)" d="M0 0c6-9 16-11 22-8-5 8-14 11-22 8z" fill="#6E8B2E"/></svg>

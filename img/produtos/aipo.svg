@@ -1,3 +1,5 @@
-<!-- Daqui: ícone de Aipo. Pode editar este ficheiro ou substituí-lo por outro SVG com o mesmo nome. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M46 108L37.599999999999994 42" stroke="#B7D47A" stroke-width="10" stroke-linecap="round" transform="rotate(-8 60 108)"/><path d="M55 108L52 42" stroke="#B7D47A" stroke-width="10" stroke-linecap="round" transform="rotate(-3 60 108)"/><path d="M65 108L68 42" stroke="#B7D47A" stroke-width="10" stroke-linecap="round" transform="rotate(3 60 108)"/><path d="M74 108L82.4 42" stroke="#B7D47A" stroke-width="10" stroke-linecap="round" transform="rotate(8 60 108)"/>
-<ellipse cx="38" cy="34" rx="8" ry="11" fill="#5E8A2B"/><ellipse cx="54" cy="26" rx="8" ry="11" fill="#5E8A2B"/><ellipse cx="70" cy="28" rx="8" ry="11" fill="#5E8A2B"/><ellipse cx="84" cy="36" rx="8" ry="11" fill="#5E8A2B"/><ellipse cx="46" cy="22" rx="8" ry="11" fill="#5E8A2B"/><ellipse cx="76" cy="20" rx="8" ry="11" fill="#5E8A2B"/></svg>
+<!-- Ícone de Aipo -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><g stroke="#A8D070" stroke-width="10" stroke-linecap="round" fill="none"><path d="M60 104V44"/><path d="M48 104L34 50"/><path d="M72 104L86 50"/><path d="M38 104L22 62"/><path d="M82 104L98 62"/></g>
+<g stroke="#7FA640" stroke-width="1.6" fill="none" stroke-linecap="round"><path d="M60 100V48M48 100L36 54M72 100L84 54M38 100L24 66M82 100L96 66"/></g>
+<g fill="#5E8A2B"><circle cx="60" cy="36" r="9"/><circle cx="50" cy="30" r="8"/><circle cx="70" cy="30" r="8"/><circle cx="34" cy="42" r="9"/><circle cx="24" cy="38" r="7"/><circle cx="86" cy="42" r="9"/><circle cx="96" cy="38" r="7"/><circle cx="20" cy="54" r="8"/><circle cx="100" cy="54" r="8"/></g>
+<path d="M30 98h60l-4 14H34z" fill="#DDEBB0"/></svg>

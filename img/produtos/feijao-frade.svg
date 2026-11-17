@@ -1,0 +1,5 @@
+<!-- Ícone de Feijão-frade -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M12 84c18-34 60-48 98-42-2 32-44 58-98 42z" fill="#7FAE3A"/><path d="M20 82c18-26 52-36 82-32-6 22-40 42-82 32z" fill="#B7D07A"/>
+<g fill="#F2E8C8"><ellipse cx="34" cy="76" rx="9" ry="7" transform="rotate(-30 34 76)"/><ellipse cx="52" cy="68" rx="9" ry="7" transform="rotate(-30 52 68)"/><ellipse cx="70" cy="60" rx="9" ry="7" transform="rotate(-25 70 60)"/><ellipse cx="88" cy="54" rx="9" ry="7" transform="rotate(-20 88 54)"/></g>
+<g fill="#2A2A2A"><ellipse cx="34" cy="75" rx="2.6" ry="3.4" transform="rotate(-30 34 75)"/><ellipse cx="52" cy="67" rx="2.6" ry="3.4" transform="rotate(-30 52 67)"/><ellipse cx="70" cy="59" rx="2.6" ry="3.4" transform="rotate(-25 70 59)"/><ellipse cx="88" cy="53" rx="2.6" ry="3.4" transform="rotate(-20 88 53)"/></g>
+<path d="M108 42c4-4 6-8 6-12" stroke="#5B7A2A" stroke-width="3" fill="none" stroke-linecap="round"/></svg>

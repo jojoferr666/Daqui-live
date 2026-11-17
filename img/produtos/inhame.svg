@@ -1,0 +1,6 @@
+<!-- Ícone de Inhame -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M14 74c2-22 22-34 44-34 24 0 44 8 44 26 0 20-24 30-48 30-26 0-42-6-40-22z" fill="#8A5A3A"/>
+<path d="M26 66c6-8 16-12 28-14" stroke="#B88A62" stroke-width="4" fill="none" stroke-linecap="round"/>
+<path d="M30 62l6 4M44 54l6 4M60 52l6 4M76 56l6 4M88 64l6 4M36 82l6 4M54 86l6 4M72 84l6 4M88 78l6 3M24 76l5 3" stroke="#5E3A24" stroke-width="2" stroke-linecap="round"/>
+<ellipse cx="100" cy="68" rx="7" ry="13" fill="#F2E6C8" stroke="#D9C99A" stroke-width="1.6"/>
+<path d="M14 74c-4 2-8 2-10 0" stroke="#5E3A24" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>

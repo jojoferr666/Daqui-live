@@ -1,0 +1,4 @@
+<!-- Ícone de Chalota -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><g transform="translate(34 10) scale(.9)"><path d="M42 28c2 10 22 22 22 46 0 16-10 26-22 26S20 90 20 74c0-24 20-36 22-46z" fill="#A8663E"/><path d="M42 34c-8 14-14 28-14 40 0 12 6 20 14 22M42 34c8 14 14 28 14 40 0 12-6 20-14 22" stroke="#7E4426" stroke-width="2" fill="none"/><path d="M42 28c-1-5 1-9 3-11" stroke="#5A3A2C" stroke-width="2.6" fill="none" stroke-linecap="round"/></g>
+<path d="M42 22c2 10 22 22 22 46 0 16-10 26-22 26S20 84 20 68c0-24 20-36 22-46z" fill="#BE7C4E"/><path d="M42 28c-8 14-14 28-14 40 0 12 6 20 14 22M42 28c8 14 14 28 14 40 0 12-6 20-14 22M42 28v62" stroke="#8E5530" stroke-width="2" fill="none"/>
+<path d="M42 22c-1-5 1-9 3-11" stroke="#5A3A2C" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M36 94l-3 7M42 94v8M48 94l3 7" stroke="#8C6A5C" stroke-width="1.8" stroke-linecap="round"/></svg>

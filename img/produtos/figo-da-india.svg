@@ -1,0 +1,7 @@
+<!-- Ícone de Figo-da-índia -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><ellipse cx="60" cy="68" rx="31" ry="40" fill="#C8335E"/>
+<path d="M30 54c4-16 16-26 30-26s26 10 30 26c-12 8-48 8-60 0z" fill="#E8742E"/>
+<ellipse cx="60" cy="30" rx="13" ry="5" fill="#8E2A3A"/>
+<ellipse cx="42" cy="66" rx="5" ry="14" fill="#E86A8A" opacity=".6"/>
+<g fill="#F4D28A"><circle cx="46" cy="50" r="1.8"/><circle cx="62" cy="48" r="1.8"/><circle cx="76" cy="52" r="1.8"/><circle cx="52" cy="66" r="1.8"/><circle cx="70" cy="68" r="1.8"/><circle cx="82" cy="72" r="1.8"/><circle cx="44" cy="82" r="1.8"/><circle cx="60" cy="84" r="1.8"/><circle cx="76" cy="88" r="1.8"/><circle cx="54" cy="98" r="1.8"/><circle cx="68" cy="102" r="1.8"/></g>
+<path d="M60 28c0-8 0-12 2-16" stroke="#5E8A2B" stroke-width="4" fill="none" stroke-linecap="round"/></svg>

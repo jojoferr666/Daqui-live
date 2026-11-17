@@ -1,0 +1,6 @@
+<!-- Ícone de Avelã -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><ellipse cx="80" cy="78" rx="21" ry="25" fill="#9A6430"/><path d="M60 66c4-12 12-18 20-18s16 6 20 18c-10 6-30 6-40 0z" fill="#C9A874"/><ellipse cx="88" cy="82" rx="5" ry="10" fill="#B88048" opacity=".7"/>
+<ellipse cx="44" cy="70" rx="24" ry="28" fill="#A8713A"/><path d="M20 56c4-14 14-20 24-20s20 6 24 20c-12 6-36 6-48 0z" fill="#D9B98A"/>
+<path d="M22 56c4 4 8 5 12 5M34 54c2 4 6 6 10 6M48 54c4 4 8 5 12 4M58 56c4 3 6 4 8 3" stroke="#B8946A" stroke-width="1.6" fill="none"/>
+<path d="M44 98c-3 3-3 5 0 8 3-3 3-5 0-8z" fill="#6A4220"/>
+<path d="M30 74c-3 8-2 16 2 22-5-4-6-14-2-22z" fill="#C9935A"/></svg>

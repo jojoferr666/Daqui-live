@@ -1,0 +1,6 @@
+<!-- Ícone de Pistáchio -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><ellipse cx="44" cy="66" rx="22" ry="32" fill="#E6D2A0" transform="rotate(-15 44 66)"/><ellipse cx="44" cy="68" rx="13" ry="22" fill="#9DB956" transform="rotate(-15 44 68)"/>
+<path d="M38 52c-2 8-2 18 2 28" stroke="#C8DE88" stroke-width="3" fill="none" stroke-linecap="round" transform="rotate(-15 44 66)"/>
+<ellipse cx="82" cy="72" rx="19" ry="28" fill="#EBD8A8" transform="rotate(15 82 72)"/>
+<path d="M82 46c5 14 5 32 0 50" stroke="#C9B27A" stroke-width="2.6" fill="none" stroke-linecap="round" transform="rotate(15 82 72)"/>
+<ellipse cx="74" cy="62" rx="4" ry="10" fill="#F6EACA" transform="rotate(15 74 62)"/></svg>

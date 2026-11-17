@@ -1,0 +1,5 @@
+<!-- Ícone de Pitaia (dragon fruit) -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><path d="M24 50c-10-4-14-12-12-18 8 0 12 6 12 18zM96 50c10-4 14-12 12-18-8 0-12 6-12 18zM60 18c-6-6-6-12-2-16 6 4 6 10 2 16zM22 82c-10 0-16-6-16-12 8-2 14 2 16 12zM98 82c10 0 16-6 16-12-8-2-14 2-16 12z" fill="#5E8A2B"/>
+<ellipse cx="60" cy="66" rx="40" ry="46" fill="#D6336C"/><ellipse cx="60" cy="66" rx="33" ry="39" fill="#F6EEF0"/>
+<circle cx="48" cy="52" r="1.8" fill="#222"/><circle cx="62" cy="46" r="1.8" fill="#222"/><circle cx="74" cy="58" r="1.8" fill="#222"/><circle cx="56" cy="64" r="1.8" fill="#222"/><circle cx="68" cy="72" r="1.8" fill="#222"/><circle cx="46" cy="76" r="1.8" fill="#222"/><circle cx="58" cy="86" r="1.8" fill="#222"/><circle cx="74" cy="88" r="1.8" fill="#222"/><circle cx="40" cy="64" r="1.8" fill="#222"/><circle cx="52" cy="40" r="1.8" fill="#222"/><circle cx="80" cy="72" r="1.8" fill="#222"/><circle cx="64" cy="96" r="1.8" fill="#222"/>
+<path d="M34 50c-4 10-4 22 0 32" stroke="#FFFFFF" stroke-width="3" fill="none" stroke-linecap="round" opacity=".6"/></svg>

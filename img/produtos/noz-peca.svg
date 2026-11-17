@@ -1,0 +1,6 @@
+<!-- Ícone de Noz pecã -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><ellipse cx="80" cy="70" rx="17" ry="33" fill="#7A4B2A" transform="rotate(20 80 70)"/>
+<path d="M74 40c-4 16-4 34 2 54M84 38c-2 16-2 34 4 54" stroke="#4A2A14" stroke-width="2.4" fill="none" transform="rotate(20 80 70)"/>
+<ellipse cx="44" cy="64" rx="19" ry="35" fill="#8A5A30" transform="rotate(-18 44 64)"/>
+<path d="M36 34c-4 16-4 38 2 58M46 30c-2 18-2 40 4 60M56 34c2 16 2 36-2 54" stroke="#5A3318" stroke-width="2.6" fill="none" transform="rotate(-18 44 64)"/>
+<ellipse cx="34" cy="58" rx="4" ry="14" fill="#B8864E" opacity=".7" transform="rotate(-18 34 58)"/></svg>
