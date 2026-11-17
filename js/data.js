@@ -194,11 +194,11 @@ const PICKUP_POINTS = ['Armazém Daqui, Vagos', 'Aveiro, Rossio', 'Ílhavo', 'Ol
 
 /* ---------- Colhe Connosco ---------- */
 const HARVEST_DAYS = [
-  { date:'2026-11-28', farmer:'luis', crop:'diospiro', what:{pt:'Dióspiros',en:'Persimmons'}, time:'9h30–12h30', spots:40 },
-  { date:'2026-12-05', farmer:'luis', crop:'kiwi', what:{pt:'Kiwis',en:'Kiwis'}, time:'9h30–12h30', spots:40 },
-  { date:'2026-12-12', farmer:'ines', crop:'alhoFrances', what:{pt:'Alho-francês e cenoura',en:'Leeks and carrots'}, time:'10h–13h', spots:25 },
-  { date:'2026-12-19', farmer:'paulo', crop:'laranja', what:{pt:'Laranjas e tangerinas',en:'Oranges and mandarins'}, time:'10h–13h', spots:30 },
-  { date:'2027-01-16', farmer:'pereira', crop:'couve', what:{pt:'Couves e brócolos',en:'Cabbage and broccoli'}, time:'10h–13h', spots:30 }
+  { id:'2026-11-28-luis', date:'2026-11-28', farmer:'luis', crop:'diospiro', what:{pt:'Dióspiros',en:'Persimmons'}, time:'9h30–12h30', spots:40 },
+  { id:'2026-12-05-luis', date:'2026-12-05', farmer:'luis', crop:'kiwi', what:{pt:'Kiwis',en:'Kiwis'}, time:'9h30–12h30', spots:40 },
+  { id:'2026-12-12-ines', date:'2026-12-12', farmer:'ines', crop:'alhoFrances', what:{pt:'Alho-francês e cenoura',en:'Leeks and carrots'}, time:'10h–13h', spots:25 },
+  { id:'2026-12-19-paulo', date:'2026-12-19', farmer:'paulo', crop:'laranja', what:{pt:'Laranjas e tangerinas',en:'Oranges and mandarins'}, time:'10h–13h', spots:30 },
+  { id:'2027-01-16-pereira', date:'2027-01-16', farmer:'pereira', crop:'couve', what:{pt:'Couves e brócolos',en:'Cabbage and broccoli'}, time:'10h–13h', spots:30 }
 ];
 
 /* ---------- Restaurantes com Selo Daqui (inventados) — x, y = posição no mapa de Aveiro ---------- */

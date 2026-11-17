@@ -49,7 +49,7 @@ PAGES.inicio = () => {
       <p class="lead">${T('Comece pelas Caixas da Estação. A seguir, os essenciais da semana e o que está na época.', 'Start with the Seasonal Boxes. Then this week\'s essentials and what\'s in season.')}</p></div>${railUI('prod')}</div>
     ${rail('prod', railItems)}
     <div class="row-between mt">
-      <div class="legend"><span><i class="lg-farm"></i>${T('Agricultor', 'Farmer')}</span><span><i class="lg-store"></i>${T('Conservação e embalamento', 'Storage and packing')}</span><span><i class="lg-daqui"></i>Daqui</span><span>${T('(divisão ilustrativa)', '(illustrative split)')}</span></div>
+      <div class="legend"><span><i class="lg-farm"></i>${T('Agricultor', 'Farmer')}</span><span><i class="lg-store"></i>${T('Conservação e embalamento', 'Storage and packing')}</span><span><i class="lg-daqui"></i>Daqui</span><span>${T('(divisão ilustrativa do valor sem IVA; os preços já incluem IVA)', '(illustrative split of the price before VAT; prices include VAT)')}</span></div>
       <a class="btn btn-green" href="${href('produtos')}">${T('Ver todos os produtos', 'See all products')}</a></div>
   </div></section>
 
@@ -135,7 +135,7 @@ function foundersForm(id = 'f-found') {
 }
 
 /* ---------------- PRODUTOS ---------------- */
-const shop = { cats: new Set(QS.get('cat') && QS.get('cat') !== 'essenciais' ? [QS.get('cat')] : []), avail: new Set(), modes: new Set(), regions: new Set(), essential: QS.get('cat') === 'essenciais', max: 10, sort: 'rel', q: QS.get('q') || '', shown: 24 };
+const shop = { min: 0, cats: new Set(QS.get('cat') && QS.get('cat') !== 'essenciais' ? [QS.get('cat')] : []), avail: new Set(), modes: new Set(), regions: new Set(), essential: QS.get('cat') === 'essenciais', max: 10, sort: 'rel', q: QS.get('q') || '', shown: 24 };
 PAGES.produtos = () => {
   const cnt = fn => PRODUCTS.filter(fn).length;
   const chk = (group, val, label, n) => `<label><input type="checkbox" data-filter="${group}" value="${val}"${shop[group].has(val) ? ' checked' : ''}>${label}<span class="n">${n}</span></label>`;
@@ -147,10 +147,12 @@ PAGES.produtos = () => {
     <div class="shop">
       <aside class="filters" id="filters" aria-label="${T('Filtros', 'Filters')}">
         <div class="fgroup"><h3>${T('Categoria', 'Category')}</h3>${chk('cats', 'caixas', T('Caixas da Estação', 'Seasonal boxes'), cnt(p => p.cat === 'caixas'))}${chk('cats', 'fruta', T('Fruta', 'Fruit'), cnt(p => p.cat === 'fruta'))}${chk('cats', 'legumes', T('Legumes', 'Vegetables'), cnt(p => p.cat === 'legumes'))}</div>
-        <div class="fgroup"><h3>${T('Disponibilidade', 'Availability')}</h3>${chk('avail', 'now', T('Disponível agora', 'Available now'), cnt(available))}${chk('avail', 'nostock', T('Fora de stock', 'Out of stock'), cnt(p => inSeason(p) && p.outOfStock))}${chk('avail', 'off', T('Fora de época', 'Out of season'), cnt(p => !inSeason(p)))}</div>
+        <div class="fgroup"><h3>${T('Disponibilidade', 'Availability')}</h3>${chk('avail', 'now', T('Disponível agora', 'Available now'), cnt(available))}${chk('avail', 'nostock', T('Fora de stock', 'Out of stock'), cnt(p => inSeason(p) && soldOut(p)))}${chk('avail', 'off', T('Fora de época', 'Out of season'), cnt(p => !inSeason(p)))}</div>
         <div class="fgroup"><h3>${T('Modo de produção', 'Farming method')}</h3>${chk('modes', 'conv', T('Convencional', 'Conventional'), cnt(hasConv))}${chk('modes', 'bio', T('Biológico', 'Organic'), cnt(hasBio))}</div>
         <div class="fgroup"><h3>${T('Região', 'Region')}</h3>${Object.keys(REGIONS).map(r => chk('regions', r, regionName(r), cnt(p => offersOf(p).some(o => F(o.farmer) && F(o.farmer).region === r)))).join('')}</div>
-        <div class="fgroup"><h3><label for="maxp" class="inline">${T('Preço máximo', 'Max price')}</label>: <span id="maxv">${money(shop.max)}</span></h3><input id="maxp" type="range" min="0.5" max="10" step="0.5" value="${shop.max}" data-filter-range>
+        <div class="fgroup"><h3>${T('Preço', 'Price')}: <span id="pricev">${money(shop.min)} – ${money(shop.max)}</span></h3>
+          <label class="small" for="minp">${T('Desde', 'From')}</label><input id="minp" type="range" min="0" max="10" step="0.5" value="${shop.min}" data-filter-min>
+          <label class="small" for="maxp">${T('Até', 'Up to')}</label><input id="maxp" type="range" min="0.5" max="10" step="0.5" value="${shop.max}" data-filter-range>
           <p class="small muted">${T('As caixas aparecem sempre.', 'Boxes always show.')}</p></div>
         <button class="link mt-s" data-reset>${T('Limpar filtros', 'Clear filters')}</button>
       </aside>
@@ -158,22 +160,28 @@ PAGES.produtos = () => {
         <div class="toolbar"><div class="row-gap"><h2 id="count" aria-live="polite"></h2><button class="btn btn-line btn-sm filter-toggle" data-filters-toggle aria-controls="filters" aria-expanded="false">${icon('filter', 18)}${T('Filtros', 'Filters')}</button></div>
           <label class="row-gap"><span class="small muted">${T('Ordenar', 'Sort')}</span><select data-sort>${[['rel', T('Mais relevantes', 'Most relevant')], ['az', T('Alfabética, A–Z', 'Alphabetical, A–Z')], ['za', T('Alfabética, Z–A', 'Alphabetical, Z–A')], ['pa', T('Preço, mais baixo', 'Price, low to high')], ['pd', T('Preço, mais alto', 'Price, high to low')], ['new', T('Colheita mais recente', 'Most recently picked')]].map(([v, n]) => `<option value="${v}"${shop.sort === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>
         <div id="qline"></div><div class="grid" id="results"></div><div id="more" class="ta-c mt"></div>
-        <div class="legend mt"><span><i class="lg-farm"></i>${T('Agricultor', 'Farmer')}</span><span><i class="lg-store"></i>${T('Conservação e embalamento', 'Storage and packing')}</span><span><i class="lg-daqui"></i>Daqui</span><span>${T('A barra de cada produto mostra uma divisão ilustrativa do preço.', 'The bar on each product shows an illustrative price split.')}</span></div>
+        <div class="legend mt"><span><i class="lg-farm"></i>${T('Agricultor', 'Farmer')}</span><span><i class="lg-store"></i>${T('Conservação e embalamento', 'Storage and packing')}</span><span><i class="lg-daqui"></i>Daqui</span><span>${T('A barra de cada produto mostra uma divisão ilustrativa do valor sem IVA. Os preços mostrados já incluem IVA.', 'The bar on each product shows an illustrative split of the price before VAT. The prices shown already include VAT.')}</span></div>
       </div>
     </div>
   </div><div class="spacer"></div>`;
   return { title: T('Produtos', 'Shop'), html, after: renderResults };
 };
-function relRank(p) { return p.cat === 'caixas' ? 0 : !inSeason(p) ? 3 : p.outOfStock ? 2.5 : p.essential ? 1 : 2; }
+/* filtros da loja (site e app): categoria, disponibilidade, modo de produção, região e intervalo de preços */
+const availKey = p => (!inSeason(p) ? 'off' : soldOut(p) ? 'nostock' : 'now');
+function prodMatches(p, s) {
+  if (s.cats.size && !s.cats.has(p.cat)) return false;
+  if (s.essential && !p.essential) return false;
+  if (s.avail.size && !s.avail.has(availKey(p))) return false;
+  if (s.modes.size && !((s.modes.has('bio') && hasBio(p)) || (s.modes.has('conv') && hasConv(p)))) return false;
+  if (s.regions.size && !offersOf(p).some(o => F(o.farmer) && s.regions.has(F(o.farmer).region))) return false;
+  if (p.cat !== 'caixas' && (shownPrice(p) > s.max || shownPrice(p) < (s.min || 0))) return false;
+  return true;
+}
+function relRank(p) { return p.cat === 'caixas' ? 0 : !inSeason(p) ? 3 : soldOut(p) ? 2.5 : p.essential ? 1 : 2; }
 function filtered() {
   const q = norm(shop.q.trim());
   let list = PRODUCTS.filter(p => {
-    if (shop.cats.size && !shop.cats.has(p.cat)) return false;
-    if (shop.essential && !p.essential) return false;
-    if (shop.avail.size && !shop.avail.has(!inSeason(p) ? 'off' : p.outOfStock ? 'nostock' : 'now')) return false;
-    if (shop.modes.size && !((shop.modes.has('bio') && hasBio(p)) || (shop.modes.has('conv') && hasConv(p)))) return false;
-    if (shop.regions.size && !offersOf(p).some(o => F(o.farmer) && shop.regions.has(F(o.farmer).region))) return false;
-    if (p.cat !== 'caixas' && shownPrice(p) > shop.max) return false;
+    if (!prodMatches(p, shop)) return false;
     if (q) { const fs = offersOf(p).map(o => F(o.farmer)).filter(Boolean); const hay = norm(`${p.name.pt} ${p.name.en} ${p.cat} ${hasBio(p) ? 'bio biologico organic' : ''} ${fs.map(f => f.name + ' ' + f.place + ' ' + L(REGIONS[f.region])).join(' ')}`); if (!q.split(/\s+/).every(w => hay.includes(w))) return false; }
     return true;
   });
@@ -192,7 +200,7 @@ function renderResults() {
 PAGE_EVENTS.click.push((e, t, d) => {
   if (PAGE !== 'produtos') return;
   if (d.cat) { const k = d.cat; if (k === 'essenciais') shop.essential = !shop.essential; else { const only = shop.cats.size === 1 && shop.cats.has(k); shop.cats = only ? new Set() : new Set([k]); } $$('[data-filter="cats"]').forEach(c => c.checked = shop.cats.has(c.value)); shop.shown = 24; renderResults(); return true; }
-  if ('reset' in d) { ['cats', 'avail', 'modes', 'regions'].forEach(k => shop[k].clear()); shop.essential = false; shop.max = 10; shop.q = ''; shop.shown = 24; render(); return true; }
+  if ('reset' in d) { ['cats', 'avail', 'modes', 'regions'].forEach(k => shop[k].clear()); shop.essential = false; shop.min = 0; shop.max = 10; shop.q = ''; shop.shown = 24; render(); return true; }
   if ('clearQ' in d) { shop.q = ''; $$('[data-search] input').forEach(i => i.value = ''); renderResults(); return true; }
   if ('more' in d) { shop.shown += 24; renderResults(); $$('#results .pcard')[shop.shown - 24]?.querySelector('.pname')?.focus(); return true; }
   if ('filtersToggle' in d) { const o = $('#filters').classList.toggle('open'); t.setAttribute('aria-expanded', o); return true; }
@@ -202,7 +210,12 @@ PAGE_EVENTS.change.push((e, t) => {
   if (t.dataset.filter) { const s = shop[t.dataset.filter]; t.checked ? s.add(t.value) : s.delete(t.value); shop.shown = 24; renderResults(); }
   if (t.matches('[data-sort]')) { shop.sort = t.value; renderResults(); }
 });
-PAGE_EVENTS.input.push((e, t) => { if (PAGE === 'produtos' && t.matches('[data-filter-range]')) { shop.max = +t.value; $('#maxv').textContent = money(shop.max); shop.shown = 24; renderResults(); } });
+PAGE_EVENTS.input.push((e, t) => {
+  if (PAGE !== 'produtos' || !t.matches('[data-filter-range], [data-filter-min]')) return;
+  if (t.matches('[data-filter-min]')) { shop.min = +t.value; if (shop.min > shop.max) { shop.max = shop.min; $('#maxp').value = shop.max; } }
+  else { shop.max = +t.value; if (shop.max < shop.min) { shop.min = shop.max; $('#minp').value = shop.min; } }
+  $('#pricev').textContent = `${money(shop.min)} – ${money(shop.max)}`; shop.shown = 24; renderResults();
+});
 
 /* ---------------- PRODUTO (/produtos/<id>) ---------------- */
 const pd = { size: (P(PID) && BOX_SIZES[PID]) ? (BOX_SIZES[PID].find(s => s.s === QS.get('tamanho')) || BOX_SIZES[PID][0]).s : 'P', qty: 1, bio: null };
@@ -225,8 +238,8 @@ PAGES.produto = () => {
         <div class="panel"><h3>${T('Subscrever', 'Subscribe')}</h3><p class="small muted">${T('Todas as semanas, quinzenas ou meses. Preço garantido durante 12 meses.', 'Every week, fortnight or month. Price guaranteed for 12 months.')}</p><a class="btn btn-green btn-block" href="${href('subscricao/' + p.id, 'tamanho=' + sz.s)}">${icon('repeat', 18)}${T('Configurar subscrição', 'Set up subscription')}</a></div>
         <div class="panel"><h3>${T('Compra única', 'One-off')}</h3><p class="small muted">${T('Uma caixa, sem compromisso.', 'One box, no commitment.')}</p><button class="btn btn-line btn-block c-campo" data-pd-add="${p.id}">${icon('basket', 18)}${T('Adicionar ao cabaz', 'Add to basket')}</button></div>
       </div>`
-    : on && p.outOfStock ? `<div class="price"><strong class="big">${money(price)}</strong><span>${unitLabel(p.unit)}</span></div>
-      <div class="note">${icon('alert', 22)}<span>${T('Esgotado esta semana. Volta assim que o agricultor tiver nova colheita.', 'Sold out this week. Back as soon as the farmer has a new harvest.')}</span></div>
+    : on && (p.outOfStock || noProducer(p)) ? `<div class="price"><strong class="big">${money(price)}</strong><span>${unitLabel(p.unit)}</span></div>
+      <div class="note">${icon('alert', 22)}<span>${noProducer(p) ? T('Sem stock: de momento nenhum agricultor o fornece.', 'Out of stock: no farmer supplies it at the moment.') : T('Esgotado esta semana. Volta assim que o agricultor tiver nova colheita.', 'Sold out this week. Back as soon as the farmer has a new harvest.')}</span></div>
       <button class="btn btn-green" data-notify="${p.id}" aria-pressed="${notifyOn(p.id)}">${icon('bell', 18)}${notifyOn(p.id) ? T('Aviso ativo', 'Reminder on') : T('Avisar-me quando houver stock', 'Notify me when back in stock')}</button>`
     : on ? `${bioChoice(p, pd.bio, 'data-pd-bio')}<div class="price"><strong class="big">${money(price)}</strong><span>${unitLabel(p.unit)}${hasBio(p) ? `, ${bioName(pd.bio).toLowerCase()}` : ''}</span></div>
       ${byKg(p) ? `<p class="small muted">${T('Pode encomendar ao meio quilo (por exemplo 2,5 kg).', 'You can order by the half kilo (for example 2.5 kg).')}</p>` : ''}
@@ -248,9 +261,9 @@ PAGES.produto = () => {
       ${buy}
       ${on ? `<div><p class="lbl">${T('Para onde vai o seu dinheiro', 'Where your money goes')}</p>${splitBar(p, false)}
         <div class="legend mt-s"><span><i class="lg-farm"></i>${T('Agricultor', 'Farmer')} ${a}%</span><span><i class="lg-store"></i>${T('Conservação e embalamento', 'Storage and packing')} ${b}%</span><span><i class="lg-daqui"></i>Daqui ${c}%</span></div>
-        <p class="small muted mt-s">${T('Divisão ilustrativa.', 'Illustrative split.')}</p></div>` : ''}
-      ${nOffers > 1 ? `<p class="small mt-s"><b>${T('Produzido por', 'Grown by')}:</b> ${producersLine(p)}</p>` : ''}
-      ${f ? `<a class="farmer-mini" href="${farmerHref(f)}"><span class="fm-pic">${farmSVG(f.seed, f.crop)}</span><span><b>${esc(f.name)}</b><br><span class="small muted">${esc(f.farm)}, ${esc(f.place)}</span><br><span class="link small">${T('Conhecer o agricultor', 'Meet the farmer')}</span></span></a>` : ''}
+        <p class="small muted mt-s">${T('Divisão ilustrativa.', 'Illustrative split.')} ${VAT_NOTE()}</p></div>` : ''}
+      ${isBox ? '' : nOffers ? `<div class="farmers-minis">${nOffers > 1 ? `<p class="lbl">${T(`Produzido por ${nOffers} agricultores`, `Grown by ${nOffers} farmers`)}</p>` : ''}${farmersOf(p).map(fid => { const x = F(fid), kinds = offersOf(p).filter(o => o.farmer === fid).map(o => bioName(o.organic).toLowerCase()); return `<a class="farmer-mini" href="${farmerHref(x)}"><span class="fm-pic">${farmSVG(x.seed, x.crop)}</span><span><b>${esc(x.name)}</b><br><span class="small muted">${esc(x.farm)}, ${esc(x.place)}${hasBio(p) && hasConv(p) ? ` · ${kinds.join(T(' e ', ' and '))}` : ''}</span><br><span class="link small">${T('Conhecer o agricultor', 'Meet the farmer')}</span></span></a>`; }).join('')}</div>`
+        : `<p class="note mt-s">${icon('alert', 22)}<span>${T('De momento nenhum agricultor fornece este produto.', 'No farmer supplies this product at the moment.')}</span></p>`}
       ${productTabs(p)}
     </div>
   </section>
@@ -416,7 +429,8 @@ function boxProducts(p) {
   const cats = { 'caixa-fruta': ['fruta'], 'caixa-legumes': ['legumes'] }[p.id] || ['fruta', 'legumes'];
   return PRODUCTS.filter(x => cats.includes(x.cat) && inSeason(x)).sort((a, b) => relRank(a) - relRank(b));
 }
-function productTabs(p) {
+/* informação do produto: análises, mais sobre o produto e envio (a mesma no site e na app) */
+function productInfo(p) {
   const isBox = p.cat === 'caixas', a = typeof ANALYSES !== 'undefined' ? ANALYSES[p.id] : null, f = p.farmer ? F(p.farmer) : null;
   const tips = GROUP_TIPS[isBox ? 'caixas' : GROUP_OF[p.id] || p.cat] || GROUP_TIPS.fruta, slots = slotOptions();
   const PN = { pesticidas: [T('Resíduos de pesticidas', 'Pesticide residues'), T('Não detetados nas 520 substâncias pesquisadas', 'None detected across the 520 substances tested')],
@@ -459,8 +473,11 @@ function productTabs(p) {
       <li>${icon('route', 18)}<span>${T('Cada encomenda tem um número para seguir a entrega na página de contacto.', 'Every order has a number to track the delivery on the contact page.')}</span></li>
       <li>${icon('alert', 18)}<span>${T('Se algo chegar em mau estado, comunique nas 48 horas seguintes: substituímos ou devolvemos o valor.', 'If something arrives damaged, tell us within 48 hours: we replace it or refund you.')}</span></li>
     </ul>`;
-  const sec = (ic, title, body, open = false) => `<details${open ? ' open' : ''}><summary>${icon(ic, 20)}<span>${title}</span><span class="pm">${icon('plus', 18)}</span></summary><div class="pt-body">${body}</div></details>`;
-  return `<div class="ptabs">${sec('shield', T('Análises e segurança alimentar', 'Lab tests and food safety'), analyses)}${sec('leaf', T('Mais sobre o produto', 'More about this product'), more)}${sec('truck', T('Envio e entrega', 'Shipping and delivery'), ship)}</div>`;
+  return [['shield', T('Análises e segurança alimentar', 'Lab tests and food safety'), analyses], ['leaf', T('Mais sobre o produto', 'More about this product'), more], ['truck', T('Envio e entrega', 'Shipping and delivery'), ship]];
+}
+function productTabs(p) {
+  const sec = ([ic, title, body]) => `<details><summary>${icon(ic, 20)}<span>${title}</span><span class="pm">${icon('plus', 18)}</span></summary><div class="pt-body">${body}</div></details>`;
+  return `<div class="ptabs">${productInfo(p).map(sec).join('')}</div>`;
 }
 
 /* ---------------- FINALIZAR ENCOMENDA (/finalizar) ---------------- */

@@ -34,7 +34,7 @@ function applyChanges(ch) {
   (ch.newProducts || []).forEach(np => { const ex = PRODUCTS.find(p => p.id === np.id); if (ex) Object.assign(ex, np); else PRODUCTS.push(Object.assign({ isNew: true }, np)); });
   for (const [id, o] of Object.entries(ch.products || {})) { const p = PRODUCTS.find(x => x.id === id); if (p) Object.assign(p, o); }
   for (const [id, sizes] of Object.entries(ch.boxes || {})) { (BOX_SIZES[id] || []).forEach(s => { if (sizes[s.s] != null) s.price = +sizes[s.s]; }); const b = PRODUCTS.find(x => x.id === id); if (b && BOX_SIZES[id]) b.price = Math.min(...BOX_SIZES[id].map(s => s.price)); }
-  if (Array.isArray(ch.harvestDays)) { HARVEST_DAYS.length = 0; ch.harvestDays.forEach(d => HARVEST_DAYS.push(Object.assign({}, d))); HARVEST_DAYS.sort((a, b) => a.date.localeCompare(b.date)); }
+  if (Array.isArray(ch.harvestDays)) { HARVEST_DAYS.length = 0; ch.harvestDays.forEach(d => HARVEST_DAYS.push(Object.assign({ id: d.id || `${d.date}-${d.farmer}` }, d))); HARVEST_DAYS.sort((a, b) => a.date.localeCompare(b.date)); }
   (ch.newFarmers || []).forEach(f => { const ex = FARMERS.find(x => x.id === f.id); if (ex) Object.assign(ex, f); else FARMERS.push(Object.assign({ isNew: true }, f)); });
   for (const [id, o] of Object.entries(ch.farmers || {})) { const f = FARMERS.find(x => x.id === id); if (f) Object.assign(f, o); }
   (ch.newRestaurants || []).forEach(r => { const ex = RESTAURANTS.find(x => x.id === r.id); if (ex) Object.assign(ex, r); else RESTAURANTS.push(Object.assign({ isNew: true }, r)); });

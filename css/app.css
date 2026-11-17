@@ -305,3 +305,48 @@ body.app .chat-fab{display:none}
 body.app .inbox-chat{grid-template-columns:1fr}
 body.app .conv-thread{padding:12px}
 body.app .star-pick label{font-size:2.2rem}
+/* ---------- versão 9 ---------- */
+/* início: deslizar entre a próxima entrega e as subscrições (ativas e em pausa) */
+.a-next-rail{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -16px;padding:0 16px 14px;scrollbar-width:none}
+.a-next-rail::-webkit-scrollbar{display:none}
+.a-next-rail>.a-next{flex:0 0 calc(100% - 24px);scroll-snap-align:center}
+.a-next-rail:focus-visible{outline:3px solid var(--pera);outline-offset:2px;border-radius:20px}
+.a-next.paused{background:#F7F7F0}
+.a-next.paused .a-next-day{color:var(--muted)}
+.a-dots.a-next-dots{justify-content:center;margin:0}
+.a-dots.a-next-dots i{background:var(--line)}
+.a-dots.a-next-dots i.on{background:var(--campo)}
+/* loja: botão de filtros e folha de filtros */
+.a-search-row{display:flex;gap:8px;align-items:center}
+.a-search-row .a-search{flex:1;min-width:0}
+.a-filter-btn{position:relative;display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--line);background:var(--white);border-radius:999px;padding:0 14px;min-height:44px;font:inherit;font-weight:700;color:var(--campo);flex:none}
+.a-filter-btn .a-dot{position:absolute;top:-6px;right:-6px}
+.a-filters{display:grid;gap:14px;padding:22px 18px 18px}
+.a-filters h2{font-size:1.4rem}
+.a-filters fieldset{border:0;margin:0;padding:0;display:grid;gap:6px}
+.a-filters legend{font-weight:700;margin-bottom:6px;padding:0}
+.a-fchk{display:flex;align-items:center;gap:10px;min-height:40px;padding:4px 2px;border-bottom:1px solid var(--line)}
+.a-fchk input{width:20px;height:20px;accent-color:var(--campo)}
+.a-fchk span:first-of-type{flex:1}
+.a-fchk .n{color:var(--muted);font-size:.85rem}
+.a-filters input[type=range]{width:100%;accent-color:var(--campo)}
+.a-filters-foot{position:sticky;bottom:0;display:flex;gap:10px;background:var(--paper);padding:12px 0 4px;border-top:1px solid var(--line)}
+.a-filters-foot .btn{flex:1}
+/* produto: um cartão por agricultor; informação igual à do site */
+.a-farms{display:grid;gap:8px}
+.a-farms-h{margin:6px 0 0}
+.a-acc-body{padding:0 0 12px}
+.a-acc-body .dl{display:grid;gap:6px;margin:0 0 10px}
+.a-acc-body .dl div{display:grid;gap:0}
+.a-acc-body .dl dt{color:var(--muted);font-size:.85rem}
+.a-acc-body .dl dd{margin:0}
+.a-acc-body h4{font-size:1rem;margin:12px 0 4px}
+.a-acc-body .checks{list-style:none;padding:0;margin:8px 0;display:grid;gap:8px}
+.a-acc-body .checks li{display:flex;gap:8px;align-items:flex-start}
+.a-acc-body .plain-list{list-style:none;padding:0;display:grid;gap:6px}
+.a-acc-body .plain-list li{display:flex;gap:6px;align-items:center}
+.a-acc-body .btn{margin-top:6px}
+.a-vat{margin:8px 0 0}
+/* encomendas: registos do Colhe Connosco, com o valor pago */
+.a-order-tot{margin-left:auto;white-space:nowrap;font-weight:700}
+.a-card-img .picon.photo{object-fit:cover}

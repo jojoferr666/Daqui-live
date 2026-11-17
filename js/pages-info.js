@@ -108,14 +108,14 @@ PAGES.restaurantes = () => {
 
 /* ---------------- COLHE CONNOSCO ---------------- */
 function dayCard(dd) {
-  const f = F(dd.farmer), u = currentUser(), mine = u && (u.harvests || []).find(h => h.date === dd.date), taken = harvestPeople(dd.date), full = taken >= dd.spots;
+  const f = F(dd.farmer) || { farm: dd.farmer, place: '' }, u = currentUser(), mine = u && (u.harvests || []).find(h => hIs(h, dd)), taken = harvestPeople(dd.id), full = taken >= dd.spots;
   return `<div class="day">
     <div class="date"><b>${fdate(dd.date, { day: 'numeric' })}</b><span>${fdate(dd.date, { month: 'short' })}</span></div>
     <div><h3>${esc(L(dd.what))}</h3><p class="meta">${esc(f.farm)}, ${esc(f.place)}<br>${fdate(dd.date, { weekday: 'long' })}, ${dd.time}</p>
       <div class="occ" role="img" aria-label="${taken} ${T('de', 'of')} ${dd.spots} ${T('lugares ocupados', 'places taken')}"><i style="width:${Math.min(100, taken / dd.spots * 100)}%"></i></div>
       <p class="small muted">${taken} ${T('de', 'of')} ${dd.spots} ${T('lugares ocupados', 'places taken')}</p></div>
-    ${mine ? `<p class="note small span2">${icon('check', 20)}<span>${T(`Está inscrito (${mine.people} ${mine.people > 1 ? 'pessoas' : 'pessoa'}).`, `You're signed up (${mine.people} ${mine.people > 1 ? 'people' : 'person'}).`)} <button class="link" data-harv-cancel="${dd.date}">${T('Cancelar inscrição', 'Cancel sign-up')}</button></span></p>`
-      : `<button class="btn btn-green btn-sm span2" data-harvest="${dd.date}"${full ? ' disabled' : ''}>${full ? T('Esgotado', 'Full') : T('Inscrever-me', 'Sign me up')}</button>`}
+    ${mine ? `<p class="note small span2">${icon('check', 20)}<span>${T(`Está inscrito (${mine.people} ${mine.people > 1 ? 'pessoas' : 'pessoa'}).`, `You're signed up (${mine.people} ${mine.people > 1 ? 'people' : 'person'}).`)} <button class="link" data-harv-cancel="${dd.id}">${T('Cancelar inscrição', 'Cancel sign-up')}</button></span></p>`
+      : `<button class="btn btn-green btn-sm span2" data-harvest="${dd.id}"${full ? ' disabled' : ''}>${full ? T('Esgotado', 'Full') : T('Inscrever-me', 'Sign me up')}</button>`}
   </div>`;
 }
 PAGES['colhe-connosco'] = () => {
@@ -140,21 +140,22 @@ PAGES['colhe-connosco'] = () => {
 function refreshDays() { const el = $('#days'); if (el) el.innerHTML = HARVEST_DAYS.filter(h => !harvestPast(h)).map(dayCard).join(''); else { const y = scrollY; render(); scrollTo(0, y); } }
 PAGE_EVENTS.click.push((e, t, d) => {
   if (d.harvest) {
-    const u = currentUser(), dd = HARVEST_DAYS.find(x => x.date === d.harvest);
+    const u = currentUser(), dd = HD(d.harvest); if (!dd) return true;
     if (!u) { loginPrompt(T('Para se inscrever no Colhe Connosco precisa de uma conta. Assim aparece na lista de inscritos do dia.', 'To sign up for Join the Harvest you need an account, so you appear on that day\'s list.')); return true; }
-    const left = dd.spots - harvestPeople(dd.date);
-    openModal(`<div class="mbody"><h2>${esc(L(dd.what))}, ${fdate(dd.date, { weekday: 'long', day: 'numeric', month: 'long' })}</h2><p class="muted">${esc(F(dd.farmer).farm)}, ${esc(F(dd.farmer).place)}. ${dd.time}.</p>
-      <form class="form" data-harv-form="${dd.date}"><p>${T('Inscrição em nome de', 'Signing up as')} <b>${esc(u.name)}</b>.</p>
+    const left = dd.spots - harvestPeople(dd.id);
+    openModal(`<div class="mbody"><h2>${esc(L(dd.what))}, ${fdate(dd.date, { weekday: 'long', day: 'numeric', month: 'long' })}</h2><p class="muted">${esc((F(dd.farmer) || {}).farm || '')}, ${esc((F(dd.farmer) || {}).place || '')}. ${dd.time}.</p>
+      <form class="form" data-harv-form="${dd.id}"><p>${T('Inscrição em nome de', 'Signing up as')} <b>${esc(u.name)}</b>.</p>
       <div class="field"><label for="hv-p">${T('Número de pessoas', 'Number of people')}</label><select id="hv-p">${Array.from({ length: Math.min(6, left) }, (_, i) => `<option>${i + 1}</option>`).join('')}</select></div>
       <button class="btn btn-green" type="submit">${T('Confirmar inscrição', 'Confirm sign-up')}</button></form></div>`, JTH());
     return true;
   }
-  if (d.harvCancel) { const u = currentUser(); if (u) { u.harvests = (u.harvests || []).filter(h => h.date !== d.harvCancel); saveUsers(); toast(T('Inscrição cancelada', 'Sign-up cancelled')); PAGE === 'conta' ? (() => { const y = scrollY; render(); scrollTo(0, y); })() : refreshDays(); } return true; }
+  if (d.harvCancel) { const u = currentUser(); if (u) { const dd = HD(d.harvCancel); u.harvests = (u.harvests || []).filter(h => !(dd ? hIs(h, dd) : h.day === d.harvCancel)); saveUsers(); toast(T('Inscrição cancelada', 'Sign-up cancelled')); PAGE === 'conta' ? (() => { const y = scrollY; render(); scrollTo(0, y); })() : refreshDays(); } return true; }
 });
 PAGE_EVENTS.submit.push((e, f) => {
   if (!f.matches('[data-harv-form]')) return; e.preventDefault();
   const u = currentUser(); if (!u) return true;
-  u.harvests = (u.harvests || []).filter(h => h.date !== f.dataset.harvForm).concat({ date: f.dataset.harvForm, people: +$('#hv-p', f).value });
+  const dd = HD(f.dataset.harvForm); if (!dd) return true;
+  u.harvests = (u.harvests || []).filter(h => !hIs(h, dd)).concat({ day: dd.id, date: dd.date, people: +$('#hv-p', f).value });
   saveUsers(); closeModal(); refreshDays(); toast(T('Inscrição confirmada', 'Sign-up confirmed')); return true;
 });
 

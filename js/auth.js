@@ -53,7 +53,7 @@ function seedAccounts() {
   const list = [
     { name: 'Maria Silva', username: 'maria', phone: '912 345 678', pass: 'daqui2026', extra: {
       subs: [{ id: 's-maria-1', box: 'caixa-mista', size: 'P', kg: 4, freq: 'sem', day: 'qui', deliver: 'pickup', point: 'Aveiro, Rossio', discovery: true, pay: 'mbway', locked: 11.50, start: '2026-06-10', first: '2026-06-11', status: 'ativa' }],
-      harvests: [{ date: '2026-11-28', people: 2 }], notify: ['cereja'], favs: ['pera-rocha', 'laranja', 'alho-frances'], exclude: ['beterraba'], address: { street: 'Rua do Carmo 21, 2.º Esq.', postal: '3800-127', town: 'Aveiro' } } },
+      harvests: [{ day: '2026-11-28-luis', date: '2026-11-28', people: 2 }], notify: ['cereja'], favs: ['pera-rocha', 'laranja', 'alho-frances'], exclude: ['beterraba'], address: { street: 'Rua do Carmo 21, 2.º Esq.', postal: '3800-127', town: 'Aveiro' } } },
     { name: 'João Costa', username: 'joao', phone: '913 222 111', pass: 'daqui2026', extra: {
       subs: [{ id: 's-joao-1', box: 'caixa-fruta', size: 'M', kg: 5, freq: 'quinz', day: 'sab', deliver: 'home', address: 'Rua do Campo 12, 3810 Aveiro', discovery: true, pay: 'mb', locked: 14.50, start: '2026-03-02', first: '2026-03-07', status: 'ativa' }],
       harvests: [{ date: '2026-11-28', people: 4 }, { date: '2026-12-05', people: 1 }] } },
@@ -152,8 +152,9 @@ function refreshSub(sub) {
   if (cur && cur < sub.locked) { sub.locked = cur; sub.lowered = true; changed = true; }
   return { changed, current: cur, lockEnd };
 }
-function harvestPeople(date) { if (NUVEM.on && !NUVEM.isAdmin()) return NUVEM.harvestPeople(date); return Object.values(USERS).reduce((n, u) => n + (u.harvests || []).filter(h => h.date === date).reduce((a, h) => a + (+h.people || 1), 0), 0); }
-function harvestList(date) { return Object.values(USERS).flatMap(u => (u.harvests || []).filter(h => h.date === date).map(h => ({ user: u, people: h.people }))); }
+/* Colhe Connosco: pessoas inscritas num dia (id do dia) e lista de inscritos (só a gestão vê nomes) */
+function harvestPeople(id) { if (NUVEM.on && !NUVEM.isAdmin()) return NUVEM.harvestPeople(id); const d = HD(id); if (!d) return 0; return Object.values(USERS).reduce((n, u) => n + (u.harvests || []).filter(h => hIs(h, d)).reduce((a, h) => a + (+h.people || 1), 0), 0); }
+function harvestList(id) { const d = HD(id); if (!d) return []; return Object.values(USERS).flatMap(u => (u.harvests || []).filter(h => hIs(h, d)).map(h => ({ user: u, people: h.people }))); }
 
 /* ---- dias de distribuição ---- */
 function slotOptions(now = new Date()) {

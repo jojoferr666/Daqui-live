@@ -14,7 +14,7 @@ const INTRO_KEY = 'daqui-app-boas-vindas';
 const PICKUP_COORDS = { 'Armazém Daqui, Vagos': [40.5545, -8.6826], 'Aveiro, Rossio': [40.6424, -8.6553], 'Ílhavo': [40.6003, -8.6667], 'Oliveira do Bairro': [40.5146, -8.4937], 'Mira': [40.4286, -8.7373], 'Águeda': [40.5747, -8.4448] };
 const AVEIRO = { lat: 40.6405, lon: -8.6538 };
 let appPos = store.get('daqui-app-posicao', null);   // { lat, lon } da última vez que deu a localização
-let lojaCat = 'tudo', lojaQ = '', mapaV = 'recolha', introStep = 0, detQty = 1, detSize = '', detBio = null, detFor = '', incPhoto = null, incPhotoUrl = '';
+let cfgFor = '', lojaCat = 'tudo', lojaQ = '', mapaV = 'recolha', introStep = 0, detQty = 1, detSize = '', detBio = null, detFor = '', incPhoto = null, incPhotoUrl = '';
 
 /* ---------- endereços: caminhos do site → ecrãs da app ---------- */
 href = function (path = '', query = '') {
@@ -89,8 +89,8 @@ function prodCard(p) {
     : available(p) ? `<button class="a-add" data-add="${p.id}" aria-label="${T('Adicionar ao cabaz', 'Add to basket')}: ${esc(L(p.name))}">${icon('plus', 20)}</button>`
     : `<button class="a-add off" data-notify="${p.id}" aria-pressed="${notifyOn(p.id)}" aria-label="${T('Avisar-me', 'Notify me')}: ${esc(L(p.name))}">${icon('bell', 18)}</button>`;
   const more = offersOf(p).map(o => o.farmer).filter((x, i, a) => a.indexOf(x) === i).length - 1;
-  return `<article class="a-card${on && !p.outOfStock ? '' : ' is-off'}">
-    <a class="a-card-img${box ? ' box' : ''}" href="${productHref(p)}">${artFor(p)}${!on ? `<span class="a-flag">${T('Volta em', 'Back in')} ${monthName(p.season[0], 'short')}</span>` : p.outOfStock ? `<span class="a-flag">${T('Esgotado', 'Sold out')}</span>` : hasBio(p) ? `<span class="a-flag bio">${hasConv(p) ? T('Também bio', 'Organic too') : T('Bio', 'Organic')}</span>` : ''}</a>
+  return `<article class="a-card${on && !soldOut(p) ? '' : ' is-off'}">
+    <a class="a-card-img${box ? ' box' : ''}" href="${productHref(p)}">${artFor(p)}${!on ? `<span class="a-flag">${T('Volta em', 'Back in')} ${monthName(p.season[0], 'short')}</span>` : soldOut(p) ? `<span class="a-flag">${T('Esgotado', 'Sold out')}</span>` : hasBio(p) ? `<span class="a-flag bio">${hasConv(p) ? T('Também bio', 'Organic too') : T('Bio', 'Organic')}</span>` : ''}</a>
     ${favBtn(p.id)}
     <a class="a-card-body" href="${productHref(p)}"><b>${esc(L(p.name))}</b><span class="muted">${box ? `${p.kg} kg, ${T('vários agricultores', 'several farmers')}` : f ? esc(f.place) + (more > 0 ? ` ${T(`e mais ${more}`, `+${more}`)}` : '') : ''}</span>
       <span class="a-price">${box ? T('desde', 'from') + ' ' : ''}${money(shownPrice(p))}<small>${box ? '' : unitLabel(p.unit)}</small></span></a>${action}</article>`;
@@ -127,18 +127,32 @@ function scrIntro() {
       : `<button class="a-big-btn" data-intro-next>${T('Seguinte', 'Next')}</button>`}</div>` };
 }
 
+/* pontos por baixo do cartão deslizante do início (encomenda e subscrições) */
+function nextRailDots() {
+  const r = $('[data-next-rail]'); if (!r) return;
+  const dots = $$('.a-next-dots i'), upd = () => { const i = Math.round(r.scrollLeft / Math.max(1, r.firstElementChild.offsetWidth + 12)); dots.forEach((d, k) => d.classList.toggle('on', k === Math.min(i, dots.length - 1))); };
+  r.addEventListener('scroll', upd, { passive: true }); upd();
+}
 function scrInicio(u) {
   const orders = myOrders(u).filter(o => orderStage(o) < 3), next = orders.sort((a, b) => a.slot.localeCompare(b.slot))[0];
-  const subs = u ? (u.subs || []).filter(s => s.status === 'ativa') : [];
+  /* todas as subscrições (ativas e em pausa): desliza-se entre elas no cartão do topo */
+  const subs = u ? (u.subs || []).filter(s => s.status === 'ativa' || s.status === 'pausada').sort((a, b) => (a.status === 'ativa' ? 0 : 1) - (b.status === 'ativa' ? 0 : 1)) : [];
   const days = next ? Math.max(0, Math.round((parseISO(next.slot) - today()) / 864e5)) : null;
-  const nextCard = next ? `<a class="a-next" href="#/encomenda/${next.num}">
+  const cards = [];
+  if (next) cards.push(`<a class="a-next" href="#/encomenda/${next.num}">
       <span class="a-next-top"><span class="muted small">${T('Próxima entrega', 'Next delivery')}</span><span class="status prog">${stageName(next)}</span></span>
       <b class="a-next-day">${days === 0 ? T('Hoje', 'Today') : days === 1 ? T('Amanhã', 'Tomorrow') : T(`Daqui a ${days} dias`, `In ${days} days`)}, ${slotLabel(next.slot)}</b>
       <span class="small">${next.num}, ${next.deliver === 'pickup' ? `${T('levantamento em', 'collect at')} ${esc(next.point)} (${pickupHours(next.day)})` : `${T('entrega em casa', 'home delivery')}${next.window ? ', ' + next.window : ''}`}</span>
-      ${stepsBar(next)}${canSwipe(next) ? `<span class="a-next-cta">${T('Já está pronta: deslize para confirmar no ponto de recolha', 'Ready now: swipe to confirm at the collection point')} ${icon('chevR', 16)}</span>` : ''}</a>`
-    : subs.length ? `<a class="a-next" href="${href('conta', 'sec=subscricoes')}"><span class="a-next-top"><span class="muted small">${T('A sua subscrição', 'Your subscription')}</span><span class="status ativa">${T('Ativa', 'Active')}</span></span>
-      <b class="a-next-day">${esc(L(P(subs[0].box).name))}</b><span class="small">${T('Próxima entrega', 'Next delivery')}: ${slotLabel(nextDelivery(subs[0]))}</span></a>`
-    : `<div class="a-next empty"><b class="a-next-day">${T('A primeira caixa é a mais fácil', 'Your first box is the easiest')}</b><span class="small">${T('Escolha uma Caixa da Estação e levante-a num ponto perto de si.', 'Pick a Seasonal Box and collect it near you.')}</span><a class="btn btn-green btn-sm mt-s" href="#/caixas">${T('Ver caixas', 'See boxes')}</a></div>`;
+      ${stepsBar(next)}${canSwipe(next) ? `<span class="a-next-cta">${T('Já está pronta: deslize para confirmar no ponto de recolha', 'Ready now: swipe to confirm at the collection point')} ${icon('chevR', 16)}</span>` : ''}</a>`);
+  subs.forEach((s, i) => { const on = s.status === 'ativa', b = P(s.box);
+    cards.push(`<a class="a-next${on ? '' : ' paused'}" href="#/conta/subscricoes">
+      <span class="a-next-top"><span class="muted small">${subs.length > 1 ? T(`A sua subscrição ${i + 1} de ${subs.length}`, `Your subscription ${i + 1} of ${subs.length}`) : T('A sua subscrição', 'Your subscription')}</span><span class="status ${on ? 'ativa' : 'pausada'}">${on ? T('Ativa', 'Active') : T('Em pausa', 'On hold')}</span></span>
+      <b class="a-next-day">${esc(b ? L(b.name) : s.box)}${s.size ? `, ${sizeName(s.size)}` : ''}</b>
+      <span class="small">${on ? `${T('Próxima entrega', 'Next delivery')}: ${slotLabel(nextDelivery(s))}` : T('Em pausa. Toque para retomar quando quiser.', 'On hold. Tap to resume whenever you like.')}</span>
+      <span class="small muted">${freqName(s.freq)}, ${dayName(s.day).toLowerCase()} · ${s.deliver === 'pickup' ? esc(s.point) : T('entrega em casa', 'home delivery')}</span></a>`); });
+  if (!cards.length) cards.push(`<div class="a-next empty"><b class="a-next-day">${T('A primeira caixa é a mais fácil', 'Your first box is the easiest')}</b><span class="small">${T('Escolha uma Caixa da Estação e levante-a num ponto perto de si.', 'Pick a Seasonal Box and collect it near you.')}</span><a class="btn btn-green btn-sm mt-s" href="#/caixas">${T('Ver caixas', 'See boxes')}</a></div>`);
+  const nextCard = cards.length > 1 ? `<div class="a-next-rail" data-next-rail aria-label="${T('Próxima entrega e subscrições: deslize para ver mais', 'Next delivery and subscriptions: swipe to see more')}" tabindex="0">${cards.join('')}</div>
+      <div class="a-dots a-next-dots" aria-hidden="true">${cards.map((x, i) => `<i class="${i === 0 ? 'on' : ''}"></i>`).join('')}</div>` : cards[0];
   const boxes = PRODUCTS.filter(p => p.cat === 'caixas');
   const near = pickupList().slice(0, 2), rests = restList().slice(0, 2);
   const favs = u ? (u.favs || []).map(P).filter(p => p && available(p)) : [];
@@ -152,20 +166,43 @@ function scrInicio(u) {
       ${rests.map(r => `<a class="a-row" href="#/mapa?v=restaurantes"><span class="a-row-ic gold">${icon('utensils', 20)}</span><span><b>${esc(r.name)}</b><span class="muted small">${esc(L(r.dish))}</span></span><span class="a-km">${fmtKm(r.km)}</span></a>`).join('')}</div>
       ${appPos ? '' : `<button class="a-locate" data-app-locate>${icon('locate', 18)}${T('Usar a minha localização', 'Use my location')}</button>`}`, `<a class="link small" href="#/mapa">${T('Mapa', 'Map')}</a>`)}
     ${sec(favs.length ? T('Os seus favoritos na época', 'Your favourites in season') : T('Essenciais da época', 'Seasonal essentials'), `<div class="a-rail small">${season.map(prodCard).join('')}</div>`, `<a class="link small" href="#/loja">${T('Ver loja', 'Shop')}</a>`)}
-    ${sec(JTH(), `<a class="a-banner" href="#/colhe"><span>${farmSVG(5, 'diospiro')}</span><span><b>${T('Venha colher connosco', 'Come and pick with us')}</b><span class="small">${HARVEST_DAYS.filter(d => d.date >= iso(today())).length} ${T('dias abertos', 'open days')}</span></span>${icon('chevR', 20)}</a>`)}` };
+    ${sec(JTH(), `<a class="a-banner" href="#/colhe"><span>${farmSVG(5, 'diospiro')}</span><span><b>${T('Venha colher connosco', 'Come and pick with us')}</b><span class="small">${HARVEST_DAYS.filter(d => d.date >= iso(today())).length} ${T('dias abertos', 'open days')}</span></span>${icon('chevR', 20)}</a>`)}`, after: nextRailDots };
 }
 
-function scrLoja(u) {
-  const q = norm(lojaQ.trim());
-  const favs = u ? u.favs || [] : [];
-  const cats = [['tudo', T('Tudo', 'All')], ['caixas', T('Caixas', 'Boxes')], ['fruta', T('Fruta', 'Fruit')], ['legumes', T('Legumes', 'Veg')], ['bio', T('Biológico', 'Organic')], ['favoritos', T('Favoritos', 'Favourites')]];
-  const list = PRODUCTS.filter(p => (lojaCat === 'tudo' || p.cat === lojaCat || (lojaCat === 'bio' && hasBio(p)) || (lojaCat === 'favoritos' && favs.includes(p.id))) && (!q || norm(`${p.name.pt} ${p.name.en} ${offersOf(p).map(o => F(o.farmer)).filter(Boolean).map(f => f.place + ' ' + f.name).join(' ')}`).includes(q)))
+/* loja: pesquisa, atalhos de categoria e filtros como no site (categoria, disponibilidade, modo de produção, região e preço) */
+const lf = { cats: new Set(), avail: new Set(), modes: new Set(), regions: new Set(), min: 0, max: 10, essential: false };
+const lfCount = () => lf.cats.size + lf.avail.size + lf.modes.size + lf.regions.size + (lf.min > 0 || lf.max < 10 ? 1 : 0);
+function lojaList(u) {
+  const q = norm(lojaQ.trim()), favs = u ? u.favs || [] : [];
+  return PRODUCTS.filter(p => (lojaCat === 'tudo' || p.cat === lojaCat || (lojaCat === 'bio' && hasBio(p)) || (lojaCat === 'favoritos' && favs.includes(p.id))) && prodMatches(p, lf)
+      && (!q || norm(`${p.name.pt} ${p.name.en} ${offersOf(p).map(o => F(o.farmer)).filter(Boolean).map(f => f.place + ' ' + f.name + ' ' + L(REGIONS[f.region] || '')).join(' ')}`).includes(q)))
     .sort((a, b) => (a.cat === 'caixas' ? 0 : available(a) ? 1 : 2) - (b.cat === 'caixas' ? 0 : available(b) ? 1 : 2));
+}
+function lojaFilters() {
+  const cnt = fn => PRODUCTS.filter(fn).length;
+  const chk = (g, v, label, n) => `<label class="a-fchk"><input type="checkbox" data-lf="${g}" value="${v}"${lf[g].has(v) ? ' checked' : ''}><span>${label}</span><span class="n">${n}</span></label>`;
+  const n = lojaList(currentUser()).length;
+  return `<div class="mbody a-filters"><h2>${T('Filtros', 'Filters')}</h2>
+    <fieldset><legend>${T('Categoria', 'Category')}</legend>${chk('cats', 'caixas', T('Caixas da Estação', 'Seasonal boxes'), cnt(p => p.cat === 'caixas'))}${chk('cats', 'fruta', T('Fruta', 'Fruit'), cnt(p => p.cat === 'fruta'))}${chk('cats', 'legumes', T('Legumes', 'Vegetables'), cnt(p => p.cat === 'legumes'))}</fieldset>
+    <fieldset><legend>${T('Disponibilidade', 'Availability')}</legend>${chk('avail', 'now', T('Disponível agora', 'Available now'), cnt(available))}${chk('avail', 'nostock', T('Fora de stock', 'Out of stock'), cnt(p => inSeason(p) && soldOut(p)))}${chk('avail', 'off', T('Fora de época', 'Out of season'), cnt(p => !inSeason(p)))}</fieldset>
+    <fieldset><legend>${T('Modo de produção', 'Farming method')}</legend>${chk('modes', 'conv', T('Convencional', 'Conventional'), cnt(hasConv))}${chk('modes', 'bio', T('Biológico', 'Organic'), cnt(hasBio))}</fieldset>
+    <fieldset><legend>${T('Região', 'Region')}</legend>${Object.keys(REGIONS).map(r => chk('regions', r, regionName(r), cnt(p => offersOf(p).some(o => F(o.farmer) && F(o.farmer).region === r)))).filter(x => !/<span class="n">0<\/span>/.test(x)).join('')}</fieldset>
+    <fieldset><legend>${T('Preço', 'Price')}: <span id="lf-pv">${money(lf.min)} – ${money(lf.max)}</span></legend>
+      <label class="small" for="lf-min">${T('Desde', 'From')}</label><input id="lf-min" type="range" min="0" max="10" step="0.5" value="${lf.min}" data-lf-range="min">
+      <label class="small" for="lf-max">${T('Até', 'Up to')}</label><input id="lf-max" type="range" min="0.5" max="10" step="0.5" value="${lf.max}" data-lf-range="max">
+      <p class="small muted">${T('As caixas aparecem sempre.', 'Boxes always show.')}</p></fieldset>
+    <div class="a-filters-foot"><button type="button" class="btn btn-line c-campo" data-lf-reset>${T('Limpar', 'Clear')}</button><button type="button" class="btn btn-green" data-modal-close id="lf-go">${T(`Ver ${n} produtos`, `Show ${n} products`)}</button></div></div>`;
+}
+function lojaRefresh() { const y = scrollY; render(); scrollTo(0, y); const n = lojaList(currentUser()).length, g = $('#lf-go'); if (g) g.textContent = T(`Ver ${n} produtos`, `Show ${n} products`); }
+function scrLoja(u) {
+  const cats = [['tudo', T('Tudo', 'All')], ['caixas', T('Caixas', 'Boxes')], ['fruta', T('Fruta', 'Fruit')], ['legumes', T('Legumes', 'Veg')], ['bio', T('Biológico', 'Organic')], ['favoritos', T('Favoritos', 'Favourites')]];
+  const list = lojaList(u), nf = lfCount();
   return { title: T('Loja', 'Shop'), fab: true, html: `
-    <div class="a-sticky"><label class="a-search">${icon('search', 20)}<span class="sr">${T('Procurar', 'Search')}</span><input type="search" id="a-q" value="${esc(lojaQ)}" placeholder="${T('Procurar fruta, legumes, quinta…', 'Search fruit, veg, farm…')}" autocomplete="off"></label>
+    <div class="a-sticky"><div class="a-search-row"><label class="a-search">${icon('search', 20)}<span class="sr">${T('Procurar', 'Search')}</span><input type="search" id="a-q" value="${esc(lojaQ)}" placeholder="${T('Procurar fruta, legumes, quinta…', 'Search fruit, veg, farm…')}" autocomplete="off"></label>
+      <button class="a-filter-btn" data-lf-open aria-label="${T('Filtros', 'Filters')}${nf ? `, ${nf} ${T('ativos', 'on')}` : ''}">${icon('filter', 20)}<span>${T('Filtros', 'Filters')}</span>${nf ? `<i class="a-dot">${nf}</i>` : ''}</button></div>
       <div class="a-chips" role="group" aria-label="${T('Categorias', 'Categories')}">${cats.map(([k, n]) => `<button class="a-chip-btn" data-loja-cat="${k}" aria-pressed="${lojaCat === k}">${n}</button>`).join('')}</div></div>
-    <div class="a-pad"><p class="muted small mb-s">${list.length} ${T('produtos', 'products')}. ${T('Distribuímos à quinta-feira e ao sábado.', 'We deliver on Thursdays and Saturdays.')}</p>
-    ${list.length ? `<div class="a-grid">${list.map(prodCard).join('')}</div>` : `<div class="a-empty">${icon('search', 30)}<p>${lojaCat === 'favoritos' && !u ? T('Entre na sua conta para ver os favoritos.', 'Sign in to see your favourites.') : T('Nada encontrado. Experimente outra palavra.', 'Nothing found. Try another word.')}</p></div>`}</div>` };
+    <div class="a-pad"><p class="muted small mb-s">${list.length} ${T('produtos', 'products')}${nf ? ` · <button class="link" data-lf-reset>${T('limpar filtros', 'clear filters')}</button>` : ''}. ${T('Distribuímos à quinta-feira e ao sábado.', 'We deliver on Thursdays and Saturdays.')}</p>
+    ${list.length ? `<div class="a-grid">${list.map(prodCard).join('')}</div>` : `<div class="a-empty">${icon('search', 30)}<p>${lojaCat === 'favoritos' && !u ? T('Entre na sua conta para ver os favoritos.', 'Sign in to see your favourites.') : nf ? T('Nenhum produto com estes filtros.', 'No products match these filters.') : T('Nada encontrado. Experimente outra palavra.', 'Nothing found. Try another word.')}</p>${nf ? `<button class="btn btn-green" data-lf-reset>${T('Limpar filtros', 'Clear filters')}</button>` : ''}</div>`}</div>` };
 }
 
 function scrProduto(id, u) {
@@ -185,8 +222,9 @@ function scrProduto(id, u) {
     <div class="a-pdp-hero${box ? ' box' : ''}"><button class="a-round" data-app-back aria-label="${T('Voltar', 'Back')}">${icon('chevL', 24)}</button>${favBtn(p.id, true)}${box ? crateSVG(p.box || 'mista') : artFor(p)}</div>
     <div class="a-pdp">
       <h1>${esc(L(p.name))}</h1>
-      ${f ? `<a class="a-farm" href="${farmerHref(f)}"><span class="a-farm-art">${farmSVG(f.seed || 0, f.crop || 'pera')}</span><span><b>${esc(f.farm)}</b><span class="muted small">${esc(f.name)}, ${esc(f.place)}</span></span>${icon('chevR', 18)}</a>` : `<p class="muted">${T('Vários agricultores; a composição muda todas as semanas.', 'Several farmers; the selection changes every week.')}</p>`}
-      ${nOff > 1 ? `<p class="small">${T('Produzido por', 'Grown by')}: ${producersLine(p)}</p>` : ''}
+      ${box ? `<p class="muted">${T('Vários agricultores; a composição muda todas as semanas.', 'Several farmers; the selection changes every week.')}</p>`
+        : nOff ? `${nOff > 1 ? `<p class="lbl a-farms-h">${T(`Produzido por ${nOff} agricultores`, `Grown by ${nOff} farmers`)}</p>` : ''}<div class="a-farms">${farmersOf(p).map(fid => { const x = F(fid), kinds = offersOf(p).filter(o => o.farmer === fid).map(o => bioName(o.organic).toLowerCase()); return `<a class="a-farm" href="${farmerHref(x)}"><span class="a-farm-art">${farmSVG(x.seed || 0, x.crop || 'pera')}</span><span><b>${esc(x.farm)}</b><span class="muted small">${esc(x.name)}, ${esc(x.place)}${hasBio(p) && hasConv(p) ? ` · ${kinds.join(T(' e ', ' and '))}` : ''}</span></span>${icon('chevR', 18)}</a>`; }).join('')}</div>`
+        : `<p class="note small">${icon('alert', 20)}<span>${T('De momento nenhum agricultor fornece este produto.', 'No farmer supplies this product at the moment.')}</span></p>`}
       <div class="a-pdp-price"><b>${money(unit)}</b><span>${box ? `${sizes.find(s => s.s === detSize).kg} kg` : unitLabel(p.unit) + (hasBio(p) ? `, ${bioName(detBio).toLowerCase()}` : '')}</span>${badges(p)}</div>
       ${!box && hasBio(p) && hasConv(p) ? `<fieldset class="a-sizes a-bio"><legend class="lbl">${T('Modo de produção', 'Farming method')}</legend>${[false, true].map(b => `<button type="button" data-det-bio="${b ? 1 : 0}" aria-pressed="${detBio === b}"${offerOn(p, b) ? '' : ' disabled'}><b>${bioName(b)}</b><span>${money(variantPrice(p, b))}${unitLabel(p.unit)}${b ? ` (+${Math.round(BIO_EXTRA * 100)}%)` : ''}${offerOn(p, b) ? '' : ' · ' + T('esgotado', 'sold out')}</span></button>`).join('')}</fieldset>` : ''}
       ${byKg(p) && available(p) ? `<p class="small muted">${T('Pode encomendar ao meio quilo (por exemplo 2,5 kg).', 'You can order by the half kilo (for example 2.5 kg).')}</p>` : ''}
@@ -197,13 +235,12 @@ function scrProduto(id, u) {
       ${!box ? `<h2 class="a-h2">${T('Época', 'Season')}</h2><div class="a-months">${months}</div>
         <p class="small muted">${h ? `${T('Colheita', 'Harvested')}: ${fdate(h)}${isStored(p) ? T(', conservada em frio', ', cold-stored') : ''}.` : T(`Fora de época. Volta em ${monthName(p.season[0])}.`, `Out of season. Back in ${monthName(p.season[0])}.`)}</p>` : ''}
       <h2 class="a-h2">${T('Para onde vai o seu dinheiro', 'Where your money goes')}</h2>
-      ${splitBar(p, false)}<div class="a-split-cap"><span><i class="k1"></i>${T('Agricultor', 'Farmer')} ${sa}%</span><span><i class="k2"></i>${T('Conservação', 'Storage')} ${sb}%</span><span><i class="k3"></i>Daqui ${sc}%</span></div>
-      ${a ? `<details class="a-acc"><summary>${icon('shield', 18)}${T('Análises de laboratório', 'Lab analyses')}</summary><p class="small">${T(`Boletim n.º ${a.n}, de ${fdate(a.date, { day: 'numeric', month: 'long', year: 'numeric' })}: resíduos de pesticidas, metais pesados e açúcar (brix) dentro dos limites.`, `Report no. ${a.n}, ${fdate(a.date, { day: 'numeric', month: 'long', year: 'numeric' })}: pesticide residues, heavy metals and sugar (brix) within limits.`)}</p><a class="link small" href="${R}docs/analises/${p.id}.pdf">${T('Abrir o boletim (PDF)', 'Open the report (PDF)')}</a></details>` : ''}
-      <details class="a-acc"><summary>${icon('truck', 18)}${T('Entrega e levantamento', 'Delivery and collection')}</summary><p class="small">${T(`Distribuímos à quinta-feira e ao sábado. Encomendas para quinta-feira até terça às 18h; para sábado até quinta às 18h. Levantamento grátis em ${PICKUP_POINTS.length} pontos ou entrega em casa por ${money(DELIVERY_FEE)}.`, `We deliver on Thursdays and Saturdays. Order by Tuesday 6 pm for Thursday, by Thursday 6 pm for Saturday. Free collection at ${PICKUP_POINTS.length} points or home delivery for ${money(DELIVERY_FEE)}.`)}</p></details>
+      ${splitBar(p, false)}<div class="a-split-cap"><span><i class="k1"></i>${T('Agricultor', 'Farmer')} ${sa}%</span><span><i class="k2"></i>${T('Conservação', 'Storage')} ${sb}%</span><span><i class="k3"></i>Daqui ${sc}%</span></div><p class="small muted a-vat">${VAT_NOTE()}</p>
+      ${productInfo(p).map(([ic, title, body]) => `<details class="a-acc"><summary>${icon(ic, 18)}${title}</summary><div class="a-acc-body small">${body}</div></details>`).join('')}
     </div>
     <div class="a-buy">${available(p) || box ? `<div class="qty"><button data-det-qty="-1" aria-label="${byKg(p) ? T('Menos meio quilo', 'Half a kilo less') : T('Menos um', 'One less')}">${icon('minus', 16)}</button><span aria-live="polite">${fmtQty(detQty, p)}</span><button data-det-qty="1" aria-label="${byKg(p) ? T('Mais meio quilo', 'Half a kilo more') : T('Mais um', 'One more')}">${icon('plus', 16)}</button></div>
       <button class="a-big-btn" data-det-add="${p.id}">${T('Adicionar', 'Add')} · ${money(total)}</button>`
-      : `<button class="a-big-btn ghost" data-notify="${p.id}" aria-pressed="${notifyOn(p.id)}">${icon('bell', 18)} ${notifyOn(p.id) ? T('Aviso ativo', 'Reminder on') : on ? T('Esgotado: avisar-me', 'Sold out: notify me') : T('Avisar-me quando voltar', 'Notify me when it\'s back')}</button>`}</div>` };
+      : `<button class="a-big-btn ghost" data-notify="${p.id}" aria-pressed="${notifyOn(p.id)}">${icon('bell', 18)} ${notifyOn(p.id) ? T('Aviso ativo', 'Reminder on') : on ? T('Sem stock: avisar-me', 'Out of stock: notify me') : T('Avisar-me quando voltar', 'Notify me when it\'s back')}</button>`}</div>` };
 }
 
 function scrMapa() {
@@ -242,16 +279,21 @@ function scrConta(u) {
   return { title: T('Conta', 'Account'), fab: roleOf(u) === 'cliente', html: `<div class="a-pad">
     ${nova ? `<p class="note done">${icon('check', 22)}<span><b>${T('Subscrição confirmada', 'Subscription confirmed')}: ${esc(L(P(nova.box).name))}.</b> ${T('Primeira entrega', 'First delivery')}: ${slotLabel(nova.first)}.</span></p>` : ''}
     <div class="a-profile"><span class="a-avatar">${esc(u.name.split(' ').map(x => x[0]).slice(0, 2).join(''))}</span><span><b>${esc(u.name)}</b><span class="muted small">${esc(u.username)}, ${esc(u.phone)}</span></span></div>
-    ${orders.length ? sec(T('Encomendas', 'Orders'), `<div class="a-list">${orders.slice(0, 3).map(orderMini).join('')}</div>`, orders.length > 3 ? `<a class="link small" href="#/conta/encomendas">${T('Ver todas', 'See all')} (${orders.length})</a>` : '') : ''}
-    ${rows([['#/conta/encomendas', 'box', T('Encomendas', 'Orders'), `${orders.length} ${orders.length === 1 ? T('encomenda', 'order') : T('encomendas', 'orders')}`], ['#/conta/subscricoes', 'repeat', T('Subscrições', 'Subscriptions'), (n => `${n} ${n === 1 ? T('ativa', 'active') : T('ativas', 'active')}`)((u.subs || []).filter(s => s.status === 'ativa').length)],
-      ['#/conta/preferencias', 'heart', T('Favoritos e exclusões', 'Favourites and exclusions'), `${(u.favs || []).length} ${(u.favs || []).length === 1 ? T('favorito', 'favourite') : T('favoritos', 'favourites')}, ${(u.exclude || []).length} ${T('excluídos', 'excluded')}`], ['#/conta/colhe', 'sprout', JTH(), (n => `${n} ${n === 1 ? T('inscrição', 'sign-up') : T('inscrições', 'sign-ups')}`)((u.harvests || []).length)], ['#/conta/dados', 'user', T('Dados e morada', 'Details and address'), T('Também para alterar a palavra-passe', 'Also to change your password')]])}
+    ${rows([['#/conta/encomendas', 'box', T('Encomendas', 'Orders'), `${orders.length} ${orders.length === 1 ? T('encomenda', 'order') : T('encomendas', 'orders')}${(n => n ? `, ${n} ${n === 1 ? T('registo do Colhe Connosco', 'harvest record') : T('registos do Colhe Connosco', 'harvest records')}` : '')(harvestRecords(u).length)}`], ['#/conta/subscricoes', 'repeat', T('Subscrições', 'Subscriptions'), (n => `${n} ${n === 1 ? T('ativa', 'active') : T('ativas', 'active')}`)((u.subs || []).filter(s => s.status === 'ativa').length)],
+      ['#/conta/preferencias', 'heart', T('Favoritos, exclusões e avisos', 'Favourites, exclusions and reminders'), `${(u.favs || []).length} ${(u.favs || []).length === 1 ? T('favorito', 'favourite') : T('favoritos', 'favourites')}, ${(u.exclude || []).length} ${T('excluídos', 'excluded')}, ${(u.notify || []).length} ${(u.notify || []).length === 1 ? T('aviso', 'reminder') : T('avisos', 'reminders')}`], ['#/conta/colhe', 'sprout', JTH(), (n => `${n} ${n === 1 ? T('inscrição', 'sign-up') : T('inscrições', 'sign-ups')}`)((u.harvests || []).length)], ['#/conta/dados', 'user', T('Dados e morada', 'Details and address'), T('Também para alterar a palavra-passe', 'Also to change your password')]])}
     <div class="a-menu">${langRow}${pushRow}</div>${help}
     <button class="a-big-btn ghost danger" data-logout>${icon('logout', 18)} ${T('Terminar sessão', 'Sign out')}</button></div>` };
 }
 
+/* registo de colheita do Colhe Connosco, na lista de encomendas (com o valor pago) */
+function recMini({ h, d, rec }, u) {
+  return `<a class="a-order" href="#/conta/colhe"><span class="a-order-ic">${icon('sprout', 22)}</span>
+    <span><b>${recId(h, d, u.username)}</b><span class="muted small">${JTH()}, ${slotLabel(d.date)}. ${recText(rec, d)}</span></span>
+    <b class="a-order-tot">${rec.price != null ? money(rec.price) : ''}</b></a>`;
+}
 function scrEncomendas(u) {
-  const list = myOrders(u);
-  return { title: T('Encomendas', 'Orders'), back: true, html: `<div class="a-pad">${list.length ? `<div class="a-list">${list.map(orderMini).join('')}</div>` : `<div class="a-empty">${icon('box', 30)}<p>${T('Ainda não fez encomendas.', 'No orders yet.')}</p><a class="btn btn-green" href="#/loja">${T('Ir à loja', 'Go to the shop')}</a></div>`}
+  const list = myOrders(u).map(o => ({ at: String(o.created), html: orderMini(o) })).concat(u ? harvestRecords(u).map(x => ({ at: x.d.date, html: recMini(x, u) })) : []).sort((a, b) => b.at.localeCompare(a.at));
+  return { title: T('Encomendas', 'Orders'), back: true, html: `<div class="a-pad">${list.length ? `<div class="a-list">${list.map(x => x.html).join('')}</div>` : `<div class="a-empty">${icon('box', 30)}<p>${T('Ainda não fez encomendas.', 'No orders yet.')}</p><a class="btn btn-green" href="#/loja">${T('Ir à loja', 'Go to the shop')}</a></div>`}
     <p class="small muted mt">${T('Procura uma encomenda feita sem conta?', 'Looking for an order placed without an account?')} <button class="link" data-help="track">${T('Procurar com o número', 'Find it by number')}</button></p></div>` };
 }
 
@@ -336,13 +378,14 @@ function appScreen(path, u) {
   if (a === 'mapa') { if (QS.get('v')) mapaV = QS.get('v'); return scrMapa(); }
   if (a === 'conta' && !b) return scrConta(u);
   if (a === 'conta' && b === 'encomendas') return scrEncomendas(u);
-  if (a === 'conta') { if (!u) return { redirect: 'entrar?next=conta' }; BACK = /^subscricao\/[a-z0-9-]+$/.test(QS.get('voltar') || '') ? QS.get('voltar') : ''; const names = { subscricoes: T('Subscrições', 'Subscriptions'), preferencias: T('Favoritos e exclusões', 'Favourites and exclusions'), colhe: JTH(), dados: role === 'admin' ? T('Dados e palavra-passe', 'Details and password') : T('Dados e morada', 'Details and address') };
+  if (a === 'conta') { if (!u) return { redirect: 'entrar?next=conta' }; BACK = /^subscricao\/[a-z0-9-]+$/.test(QS.get('voltar') || '') ? QS.get('voltar') : ''; const names = { subscricoes: T('Subscrições', 'Subscriptions'), preferencias: T('Favoritos, exclusões e avisos', 'Favourites, exclusions and reminders'), colhe: JTH(), dados: role === 'admin' ? T('Dados e palavra-passe', 'Details and password') : T('Dados e morada', 'Details and address') };
     return { title: names[b] || T('Conta', 'Account'), back: true, html: `<div class="a-pad">${contaSection(b) || ''}</div>` }; }
   if (a === 'mensagens') return role === 'admin' ? { redirect: 'g/mensagens' } : scrMensagens(u);
   if (a === 'encomenda') return scrEncomenda(b, u);
   if (a === 'incidencia') return scrIncidencia(b);
   if (a === 'caixas') { const o = sitePage('subscricao'); return { title: T('Caixas da Estação', 'Seasonal boxes'), back: true, fab: true, html: o.html, after: o.after }; }
-  if (a === 'subscrever') { PAGE = 'subscrever'; PID = b; cfg = makeCfg(); const o = PAGES.subscrever(); return { title: T('Subscrever', 'Subscribe'), back: true, html: wrapSite('subscrever', o.html) }; }
+  if (a === 'subscrever') { PAGE = 'subscrever'; PID = b; if (cfgFor !== location.hash) { cfg = makeCfg(); cfgFor = location.hash; }   /* só recomeça a configuração ao entrar no ecrã (não a cada escolha) */
+    const o = PAGES.subscrever(); return { title: T('Subscrever', 'Subscribe'), back: true, html: wrapSite('subscrever', o.html) }; }
   if (a === 'finalizar') { const o = sitePage('finalizar'); return { title: T('Finalizar encomenda', 'Check out'), back: true, html: o.html, after: o.after }; }
   if (a === 'entrar') { if (QS.get('modo')) authMode = QS.get('modo') === 'registo' ? 'registo' : 'entrar'; if (QS.get('tipo')) authRole = QS.get('tipo'); NEXT = /^[a-z0-9\-/]*$/.test(QS.get('next') || '') ? QS.get('next') || '' : ''; const o = sitePage('entrar'); return { title: T('Entrar', 'Sign in'), back: true, html: o.html }; }
   if (a === 'colhe') { const o = sitePage('colhe-connosco'); return { title: JTH(), back: true, html: o.html, after: o.after }; }
@@ -429,6 +472,8 @@ PAGE_EVENTS.click.push((e, t, d) => {
   if (d.introLang) { store.set('daqui-lang', d.introLang); lang = d.introLang; introStep = 1; render(); return true; }
   if ('introNext' in d) { introStep++; render(); return true; }
   if ('introEnd' in d) { store.set(INTRO_KEY, true); introStep = 0; appReplace(d.introEnd === 'entrar' ? '#/entrar' : '#/' + roleHome()); return true; }
+  if ('lfOpen' in d) { openModal(lojaFilters(), T('Filtros', 'Filters')); $('#modal .box').classList.add('a-sheet'); return true; }
+  if ('lfReset' in d) { ['cats', 'avail', 'modes', 'regions'].forEach(k => lf[k].clear()); lf.min = 0; lf.max = 10; lojaCat = 'tudo'; if ($('#modal').classList.contains('on')) $('#modal .box').innerHTML = $('[data-modal-close]', $('#modal')).outerHTML + lojaFilters(); lojaRefresh(); return true; }
   if (d.lojaCat) { lojaCat = d.lojaCat; rerenderKeep(`[data-loja-cat="${d.lojaCat}"]`); return true; }
   if (d.mapa) { mapaV = d.mapa; history.replaceState(null, '', '#/mapa?v=' + d.mapa); render(); return true; }
   if ('appLocate' in d) { askPosition(); return true; }
@@ -444,7 +489,16 @@ PAGE_EVENTS.click.push((e, t, d) => {
   if ('pushOn' in d) { NATIVO.pushStart(true).then(() => rerenderKeep()); return true; }
 });
 PAGE_EVENTS.input.push((e, t) => { if (t.id === 'a-q') { lojaQ = t.value; const y = scrollY; render(); scrollTo(0, y); const i = $('#a-q'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); } });
-PAGE_EVENTS.change.push((e, t) => { if (t.id === 'ai-file' && t.files[0]) setPhoto(t.files[0]); });
+PAGE_EVENTS.change.push((e, t) => {
+  if (t.id === 'ai-file' && t.files[0]) setPhoto(t.files[0]);
+  if (t.dataset.lf) { const s = lf[t.dataset.lf]; t.checked ? s.add(t.value) : s.delete(t.value); lojaRefresh(); }
+});
+PAGE_EVENTS.input.push((e, t) => {
+  if (!t.dataset.lfRange) return;
+  lf[t.dataset.lfRange] = +t.value;
+  if (lf.min > lf.max) { if (t.dataset.lfRange === 'min') { lf.max = lf.min; $('#lf-max').value = lf.max; } else { lf.min = lf.max; $('#lf-min').value = lf.min; } }
+  $('#lf-pv').textContent = `${money(lf.min)} – ${money(lf.max)}`; lojaRefresh();
+});
 PAGE_EVENTS.submit.push((e, f) => {
   if (!f.matches('[data-app-incident]')) return;
   e.preventDefault(); if (!validate(f)) return true;

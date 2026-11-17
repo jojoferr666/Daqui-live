@@ -36,30 +36,38 @@ function setMyStock(p, fid, out) {
   if (NUVEM.on) { Object.assign(p, { producers: offers, outOfStock: offers.every(o => o.outOfStock) }); NUVEM.setStock(p.id, out); return; }
   saveOffers(p, offers);
 }
-/* agricultor ou gestão: editar um dia Colhe Connosco antes de começar (data, horário, lugares, produto) */
-function editHarvestDay(oldDate, patch) {
-  const d = HARVEST_DAYS.find(x => x.date === oldDate); if (!d) return false;
-  if (patch.date !== oldDate && HARVEST_DAYS.some(x => x.date === patch.date)) return T('Já existe um dia Colhe Connosco nessa data.', 'There is already a Join the Harvest day on that date.');
-  const move = () => { if (patch.date === oldDate) return; Object.values(USERS).forEach(u => (u.harvests || []).forEach(h => { if (h.date === oldDate) h.date = patch.date; })); };
-  if (NUVEM.on) { Object.assign(d, patch); move(); HARVEST_DAYS.sort((a, b) => a.date.localeCompare(b.date)); NUVEM.editHarvestDay(oldDate, d); return true; }
-  saveCatalog(ch => { ch.harvestDays = HARVEST_DAYS.map(x => Object.assign({}, x, x.date === oldDate ? patch : {})); }); move(); saveUsers(); return true;
+/* agricultor: deixar de vender um produto (por exemplo, deixou de trabalhar o pomar). Sem nenhum produtor, o produto fica sem stock. */
+function leaveProduct(p, fid) {
+  const offers = offersOf(p).filter(o => o.farmer !== fid).map(o => Object.assign({}, o));
+  if (NUVEM.on) { Object.assign(p, { producers: offers, organic: offers.some(o => o.organic), outOfStock: !offers.length || offers.every(o => o.outOfStock), farmer: offers.some(o => o.farmer === p.farmer) ? p.farmer : offers.length ? offers[0].farmer : null }); NUVEM.leaveProduct(p.id); return; }
+  saveOffers(p, offers);
 }
-let editDay = '', showNewProd = false;
+/* agricultor ou gestão: editar um dia Colhe Connosco antes de começar (data, horário, lugares, produto) */
+function editHarvestDay(id, patch) {
+  const d = HD(id); if (!d) return false;
+  if (patch.date !== d.date && HARVEST_DAYS.some(x => x.id !== id && x.date === patch.date && x.farmer === d.farmer)) return T('A sua quinta já tem um dia Colhe Connosco nessa data.', 'Your farm already has a Join the Harvest day on that date.');
+  /* as inscrições ficam ligadas ao dia (pelo id); só a data guardada nelas muda */
+  const move = () => Object.values(USERS).forEach(u => (u.harvests || []).forEach(h => { if (hIs(h, d)) { h.day = id; h.date = patch.date || d.date; } }));
+  if (NUVEM.on) { move(); Object.assign(d, patch); HARVEST_DAYS.sort((a, b) => a.date.localeCompare(b.date)); NUVEM.editHarvestDay(id, d); return true; }
+  move(); saveCatalog(ch => { ch.harvestDays = HARVEST_DAYS.map(x => Object.assign({}, x, x.id === id ? patch : {})); }); saveUsers(); return true;
+}
+let editDay = '', showNewProd = false, ppIcon = '_novo', ppPhoto = null, ppPhotoUrl = '';
+function setPPPhoto(blob) { if (ppPhotoUrl) URL.revokeObjectURL(ppPhotoUrl); ppPhoto = blob; ppPhotoUrl = blob ? URL.createObjectURL(blob) : ''; }
 
 function farmerArea(u) {
   const pt = u.partner, f = pt.farmerId ? F(pt.farmerId) : null, story = f ? f.story : (pt.story || { pt: '', en: '' });
   const mine = f ? ofFarmer(f.id) : [];
   const days = f ? HARVEST_DAYS.filter(d => d.farmer === f.id && !harvestStarted(d)) : [], done = f ? HARVEST_DAYS.filter(d => d.farmer === f.id && harvestStarted(d)).sort((a, b) => b.date.localeCompare(a.date)) : [];
   const offerOpts = ['fruta', 'legumes'].map(c => `<optgroup label="${catName(c)}">${PRODUCTS.filter(p => p.cat === c && !(f && myOffers(p, f.id).length >= 2)).sort((a, b) => L(a.name).localeCompare(L(b.name))).map(p => { const my = f ? myOffers(p, f.id) : []; return `<option value="${p.id}">${esc(L(p.name))}${my.length ? ` (${T('já vende', 'you already sell')} ${bioName(my[0].organic).toLowerCase()})` : ''}</option>`; }).join('')}</optgroup>`).join('');
-  const dayRow = d => { const n = harvestPeople(d.date), ed = editDay === d.date;
+  const dayRow = d => { const n = harvestPeople(d.id), ed = editDay === d.id;
     return `<li class="hrow${ed ? ' editing' : ''}"><div class="date sm"><b>${fdate(d.date, { day: 'numeric' })}</b><span>${fdate(d.date, { month: 'short' })}</span></div><div><b>${esc(L(d.what))}</b><br><span class="small muted">${d.time}. ${n} ${T('de', 'of')} ${d.spots} ${T('lugares ocupados', 'places taken')}.</span>
-      ${ed ? `<form class="form mt-s" data-edit-day="${d.date}" novalidate>
+      ${ed ? `<form class="form mt-s" data-edit-day="${d.id}" novalidate>
         <div class="row"><div class="field"><label for="ed-date">${T('Data', 'Date')}</label><input id="ed-date" type="date" min="${iso(today())}" value="${d.date}" required></div>${timeFields('ed', d.time)}</div>
         <div class="row"><div class="field"><label for="ed-prod">${T('Produto a colher', 'Produce to pick')}</label><select id="ed-prod"><option value="">${esc(L(d.what))}</option>${mine.map(p => `<option value="${p.id}">${esc(L(p.name))}</option>`).join('')}</select></div><div class="field"><label for="ed-spots">${T('Máximo de participantes', 'Maximum participants')}</label><input id="ed-spots" type="number" min="${Math.max(1, n)}" value="${d.spots}" required></div></div>
         ${n ? `<p class="small muted">${T(`Os ${n} inscritos recebem um aviso com a alteração.`, `The ${n} people signed up get a notice of the change.`)}</p>` : ''}
         <p class="err" hidden></p><div class="row-btns"><button class="btn btn-green btn-sm" type="submit">${T('Guardar alterações', 'Save changes')}</button><button type="button" class="btn btn-line btn-sm" data-edit-day-cancel>${T('Cancelar', 'Cancel')}</button></div></form>` : ''}</div>
-      ${ed ? '' : `<button class="link" data-edit-day-open="${d.date}">${T('Editar', 'Edit')}</button>`}</li>`; };
-  const doneRow = d => { const sm = harvestSummary(d.date);
+      ${ed ? '' : `<button class="link" data-edit-day-open="${d.id}">${T('Editar', 'Edit')}</button>`}</li>`; };
+  const doneRow = d => { const sm = harvestSummary(d.id);
     return `<li class="hrow"><div class="date sm"><b>${fdate(d.date, { day: 'numeric' })}</b><span>${fdate(d.date, { month: 'short' })}</span></div><div><b>${esc(L(d.what))}</b> ${harvestPast(d) ? '' : `<span class="status prog">${T('A decorrer', 'In progress')}</span>`}<br>
       <span class="small muted">${sm.people} ${T('participantes', 'participants')}${sm.kg ? ` · ${numFmt(sm.kg)} kg ${T('colhidos', 'picked')}` : ''}</span><br>
       ${sm.n ? `${stars(Math.round(sm.avg))} <span class="small">${numFmt(round2(sm.avg))} (${sm.n} ${sm.n === 1 ? T('avaliação', 'review') : T('avaliações', 'reviews')})</span>${sm.comments.filter(c => c.comment).map(c => `<p class="small mt-s">«${esc(c.comment)}» ${stars(c.rating)}</p>`).join('')}` : `<span class="small muted">${harvestRateOpen(d) ? T('As avaliações dos participantes aparecem aqui.', 'Participants\' reviews show here.') : T('Sem avaliações.', 'No reviews.')}</span>`}</div></li>`; };
@@ -73,7 +81,8 @@ function farmerArea(u) {
     ${mine.length ? `<p class="muted mt-s mb-s">${T('Marque um produto como fora de stock quando não tiver colheita para a semana. O preço é acordado com a Daqui.', 'Mark a product as out of stock when you have no harvest for the week. Prices are agreed with Daqui.')}</p>
       <ul class="prodlist">${mine.map(p => { const my = myOffers(p, f.id), out = my.every(o => o.outOfStock), others = offersOf(p).filter(o => o.farmer !== f.id).map(o => F(o.farmer)).filter(Boolean);
         return `<li><span class="thumb">${artFor(p)}</span><span><a href="${productHref(p)}"><b>${esc(L(p.name))}</b></a><br><span class="small muted">${my.map(o => `${bioName(o.organic)} ${money(variantPrice(p, o.organic))}${unitLabel(p.unit)}`).join(', ')}; ${T('época', 'season')} ${seasonText(p)}</span>${others.length ? `<br><span class="small muted">${T('Também produzido por', 'Also grown by')} ${others.map(x => esc(x.name)).filter((x, i, a) => a.indexOf(x) === i).join(', ')}</span>` : ''}</span>
-        ${inSeason(p) ? `<button class="btn btn-sm ${out ? 'btn-green' : 'btn-line c-tomato'}" data-my-stock="${p.id}">${out ? T('Repor stock', 'Back in stock') : T('Marcar fora de stock', 'Mark out of stock')}</button>` : `<span class="small muted">${T('Fora de época', 'Out of season')}</span>`}</li>`; }).join('')}</ul>`
+        <span class="prod-acts">${inSeason(p) ? `<button class="btn btn-sm ${out ? 'btn-green' : 'btn-line c-tomato'}" data-my-stock="${p.id}">${out ? T('Repor stock', 'Back in stock') : T('Marcar fora de stock', 'Mark out of stock')}</button>` : `<span class="small muted">${T('Fora de época', 'Out of season')}</span>`}
+          <button class="link small c-tomato" data-leave-prod="${p.id}">${icon('trash', 16)} ${T('Deixar de vender', 'Stop selling')}</button></span></li>`; }).join('')}</ul>`
       : `<p class="muted mt-s">${pt.approved ? T('Ainda não tem produtos publicados. Proponha o primeiro abaixo.', 'No products published yet. Propose your first one below.') : T('Os seus produtos aparecem aqui depois de a quinta ser aprovada.', 'Your products appear here once the farm is approved.')}</p>`}
     <details class="panel mt"${showNewProd ? ' open' : ''}><summary class="lbl">${icon('plus', 18)} ${T('Adicionar um produto', 'Add a product')}</summary>
       <form class="form mt-s" data-offer-prod novalidate>
@@ -89,6 +98,13 @@ function farmerArea(u) {
         <label class="switch sm"><input type="checkbox" id="pp-bio">${T('É biológico (indique o preço do biológico)', 'It is organic (enter the organic price)')}</label>
         <div class="row"><div class="field"><label for="pp-unit">${T('Unidade', 'Unit')}</label><select id="pp-unit">${UNIT_OPTS('kg')}</select></div><div class="field"><span class="lbl">${T('Época', 'Season')}</span><div class="row-gap"><select id="pp-s0" class="sel sm" aria-label="${T('De', 'From')}">${monthOpts(1)}</select>–<select id="pp-s1" class="sel sm" aria-label="${T('Até', 'To')}">${monthOpts(12)}</select></div></div></div>
         <div class="row"><div class="field"><label for="pp-dpt">${T('Descrição em português', 'Description in Portuguese')}</label><textarea id="pp-dpt" rows="2"></textarea></div><div class="field"><label for="pp-den">${T('Descrição em inglês', 'Description in English')}</label><textarea id="pp-den" rows="2"></textarea></div></div>
+        <fieldset class="plain img-pick"><legend class="lbl">${T('Imagem na loja', 'Picture in the shop')}</legend>
+          <span class="img-prev" id="pp-prev">${ppPhotoUrl ? `<img src="${ppPhotoUrl}" alt="${T('Fotografia escolhida', 'Chosen photo')}">` : `<img src="${R}img/produtos/${esc(ppIcon)}.svg" alt="">`}</span>
+          <div class="img-pick-c">
+            ${ppPhotoUrl ? `<p class="small">${T('Vai ser usada a sua fotografia.', 'Your photo will be used.')} <button type="button" class="link" data-pp-photo-rm>${T('Usar um desenho', 'Use a drawing')}</button></p>`
+              : `<div class="field"><label for="pp-icon">${T('Desenho', 'Drawing')}</label><select id="pp-icon" data-pp-icon>${ICON_CHOICES().map(([v, n]) => `<option value="${esc(v)}"${v === ppIcon ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></div>`}
+            <label class="btn btn-line btn-sm c-campo">${icon('camera', 16)} ${ppPhotoUrl ? T('Escolher outra fotografia', 'Choose another photo') : T('Ou carregar uma fotografia', 'Or upload a photo')}<input type="file" id="pp-photo" accept="image/*" class="sr"></label>
+            <p class="small muted">${T('A equipa Daqui confirma a imagem com o produto.', 'The Daqui team confirms the picture with the product.')}</p></div></fieldset>
         <p class="err" hidden></p><button class="btn btn-green btn-sm" type="submit">${T('Enviar proposta', 'Send proposal')}</button></form></details>
     ${myRequests(u, 'produto').length ? `<h3 class="mt">${T('Os meus pedidos de produtos', 'My product requests')}</h3><ul class="hlist mt-s">${myRequests(u, 'produto').map(r => `<li class="hrow"><span>${icon('leaf', 20)}</span><div><b>${esc(r.fields.productId && P(r.fields.productId) ? L(P(r.fields.productId).name) : lang === 'en' && r.fields.nameEn ? r.fields.nameEn : r.fields.namePt)}</b> <span class="small muted">(${bioName(r.fields.organic === 'sim').toLowerCase()})</span><br><span class="small muted">${fdate(r.created)}${r.fields.productId ? ', ' + T('produto da loja', 'shop product') : r.fields.price ? ', ' + T('produto novo', 'new product') + ' ' + money(+r.fields.price) : ''}</span>${reqReply(r)}</div>${reqStatus(r)}</li>`).join('')}</ul>` : ''}</section>
   <section class="acc-sec"><h2>${JTH()}</h2>
@@ -143,11 +159,25 @@ function saveRest(u, patch) {
 PAGE_EVENTS.click.push((e, t, d) => {
   if (PAGE !== 'parceiro') return; const u = currentUser(); if (!u || !u.partner) return;
   if (d.myStock) { const p = P(d.myStock), fid = u.partner.farmerId, v = !myOffers(p, fid).every(o => o.outOfStock); setMyStock(p, fid, v); toast(v ? T(`${L(p.name)}: fora de stock`, `${L(p.name)}: out of stock`) : T(`${L(p.name)}: com stock`, `${L(p.name)}: in stock`)); rerenderKeep(`[data-my-stock="${p.id}"]`); return true; }
+  if (d.leaveProd) { const p = P(d.leaveProd), others = offersOf(p).filter(o => o.farmer !== u.partner.farmerId).length;
+    openModal(`<div class="mbody"><h2>${T('Deixar de vender', 'Stop selling')} ${esc(L(p.name))}?</h2>
+      <p class="mt-s">${T('O produto sai da sua lista e a sua quinta deixa de aparecer como produtora.', 'The product leaves your list and your farm no longer shows as a grower.')} ${others ? T('Continua na loja com os outros agricultores que o vendem.', 'It stays in the shop with the other farmers who sell it.') : T('Como mais nenhum agricultor o vende, fica sem stock na loja até alguém voltar a fornecê-lo.', 'As no other farmer sells it, it shows as out of stock until someone supplies it again.')}</p>
+      <p class="small muted mt-s">${T('Se voltar a ter este produto, peça-o outra vez em "Adicionar um produto".', 'If you have it again, ask for it again under "Add a product".')}</p>
+      <div class="row-btns mt"><button class="btn btn-line c-tomato" data-site-page="parceiro" data-leave-ok="${p.id}">${T('Deixar de vender', 'Stop selling')}</button><button class="btn btn-line c-campo" data-modal-close>${T('Cancelar', 'Cancel')}</button></div></div>`, T('Deixar de vender', 'Stop selling'));
+    return true; }
+  if (d.leaveOk) { const p = P(d.leaveOk); leaveProduct(p, u.partner.farmerId); closeModal(); toast(T(`Deixou de vender ${L(p.name)}`, `You stopped selling ${L(p.name)}`)); rerenderKeep(); return true; }
+  if ('ppPhotoRm' in d) { setPPPhoto(null); rerenderKeep('#pp-icon'); return true; }
   if ('newProdToggle' in d) { showNewProd = !showNewProd; rerenderKeep('[data-new-prod-toggle]'); return true; }
   if (d.editDayOpen) { editDay = d.editDayOpen; rerenderKeep('#ed-date'); return true; }
   if ('editDayCancel' in d) { editDay = ''; rerenderKeep(); return true; }
   if ('partnerRetry' in d) { u.partner.rejected = false; delete u.partner.reply; saveUsers(); partnerRequest(u); toast(T('Pedido enviado outra vez à equipa Daqui', 'Application sent to the Daqui team again')); rerenderKeep(); return true; }
   if (d.dishRm !== undefined) { const r = RESTAURANTS.find(x => x.id === u.partner.restId); const list = ((r ? r.dishes : (u.partner.draft || {}).dishes) || []).filter((_, i) => i !== +d.dishRm); saveRest(u, { dishes: list }); rerenderKeep(); return true; }
+});
+PAGE_EVENTS.change.push((e, t) => {
+  if (PAGE !== 'parceiro') return;
+  if (t.matches('[data-pp-icon]')) { ppIcon = t.value; const pv = $('#pp-prev img'); if (pv) pv.src = `${R}img/produtos/${ppIcon}.svg`; }
+  if (t.id === 'pp-photo' && t.files[0]) { const keep = ['pp-pt', 'pp-en', 'pp-price', 'pp-dpt', 'pp-den'].map(id => [id, ($('#' + id) || {}).value]);
+    shrinkImage(t.files[0]).then(b => { setPPPhoto(b); rerenderKeep('#pp-photo'); keep.forEach(([id, v]) => { if ($('#' + id) && v != null) $('#' + id).value = v; }); }, () => toast(T('Esta imagem não pode ser usada.', 'This image cannot be used.'))); }
 });
 PAGE_EVENTS.submit.push((e, f) => {
   if (PAGE !== 'parceiro') return; const u = currentUser(); if (!u || !u.partner) return;
@@ -167,10 +197,15 @@ PAGE_EVENTS.submit.push((e, f) => {
   if (f.matches('[data-prop-prod]')) { e.preventDefault(); if (!validate(f)) return true;
     const namePt = $('#pp-pt').value.trim(), b = baseName(namePt), same = PRODUCTS.filter(p => { if (p.cat === 'caixas') return false; const x = baseName(p.name.pt); return x === b || (b.split(' ').length > 1 && (x.startsWith(b + ' ') || b.startsWith(x + ' '))); });
     if (same.length) return fail(T(`Já existe na Daqui: ${same.map(p => L(p.name)).join(', ')}. Escolha-o na lista acima (e marque se o seu é biológico).`, `Already on Daqui: ${same.map(p => L(p.name)).join(', ')}. Pick it in the list above (and tick if yours is organic).`));
-    addRequest('produto', { namePt, nameEn: $('#pp-en').value.trim(), cat: $('#pp-cat').value, price: $('#pp-price').value, unit: $('#pp-unit').value, season: `${$('#pp-s0').value}-${$('#pp-s1').value}`, desc: $('#pp-dpt').value.trim(), descEn: $('#pp-den').value.trim(), organic: $('#pp-bio').checked ? 'sim' : 'nao' }, { partnerUser: u.username });
-    showNewProd = false; return done(T('Proposta enviada à equipa Daqui', 'Proposal sent to the Daqui team')); }
+    const fields = { namePt, nameEn: $('#pp-en').value.trim(), cat: $('#pp-cat').value, price: $('#pp-price').value, unit: $('#pp-unit').value, season: `${$('#pp-s0').value}-${$('#pp-s1').value}`, desc: $('#pp-dpt').value.trim(), descEn: $('#pp-den').value.trim(), organic: $('#pp-bio').checked ? 'sim' : 'nao', icon: ppIcon };
+    const send = photo => { if (photo) fields.photo = photo; addRequest('produto', fields, { partnerUser: u.username }); showNewProd = false; ppIcon = '_novo'; setPPPhoto(null); done(T('Proposta enviada à equipa Daqui', 'Proposal sent to the Daqui team')); };
+    if (!ppPhoto) { send(''); return true; }
+    const btn = $('button[type="submit"]', f); btn.disabled = true; btn.classList.add('busy');
+    /* com base de dados: a fotografia vai para o Storage (pasta "produtos"); sem base de dados: fica guardada no pedido, reduzida */
+    (NUVEM.on ? NUVEM.uploadPhoto(ppPhoto, 'jpg', 'produtos') : blobToDataURL(ppPhoto)).then(send, err => { console.error(err); btn.disabled = false; btn.classList.remove('busy'); fail(T('Não foi possível enviar a fotografia. Tente outra vez ou escolha um desenho.', 'The photo could not be sent. Try again or pick a drawing.')); });
+    return true; }
   if (f.matches('[data-edit-day]')) { e.preventDefault(); if (!validate(f)) return true; if (timeBad('ed')) return fail(timeBad('ed'));
-    const old = f.dataset.editDay, d0 = HARVEST_DAYS.find(x => x.date === old); if (!d0) return true;
+    const old = f.dataset.editDay, d0 = HD(old); if (!d0) return true;
     if (harvestStarted(d0)) return fail(T('Este dia já começou: já não pode ser alterado.', 'This day has already started: it can no longer be changed.'));
     const date = $('#ed-date').value, n = harvestPeople(old), spots = Math.max(+$('#ed-spots').value || 1, n, 1), pr = P($('#ed-prod').value);
     if (date < iso(today())) return fail(T('Escolha uma data a partir de hoje.', 'Pick a date from today.'));
@@ -178,6 +213,7 @@ PAGE_EVENTS.submit.push((e, f) => {
     const r = editHarvestDay(old, patch); if (r !== true) return fail(r || T('Não foi possível guardar.', 'Could not save.'));
     editDay = ''; return done(T('Dia Colhe Connosco atualizado', 'Join the Harvest day updated')); }
   if (f.matches('[data-prop-day]')) { e.preventDefault(); if (!validate(f)) return true; if (timeBad('pd')) return fail(timeBad('pd'));
+    if (HARVEST_DAYS.some(x => x.farmer === u.partner.farmerId && x.date === $('#pd-date').value)) return fail(T('A sua quinta já tem um dia Colhe Connosco nessa data.', 'Your farm already has a Join the Harvest day on that date.'));
     addRequest('colhe', { date: $('#pd-date').value, product: $('#pd-prod').value, time: timeText($('#pd-ini').value, $('#pd-fim').value), spots: $('#pd-spots').value }, { partnerUser: u.username });
     return done(T('Proposta enviada à equipa Daqui', 'Proposal sent to the Daqui team')); }
   if (f.matches('[data-cold]')) { e.preventDefault(); if (!validate(f)) return true;

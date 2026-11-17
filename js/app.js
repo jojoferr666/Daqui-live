@@ -52,7 +52,10 @@ const catName = c => ({ fruta: T('Fruta', 'Fruit'), legumes: T('Legumes', 'Veget
 
 /* ---------- época, colheita e divisão do preço ---------- */
 const NOW_M = today().getMonth() + 1;
-const available = p => inSeason(p) && !p.outOfStock;
+const available = p => inSeason(p) && !p.outOfStock && !noProducer(p);
+/* produto sem nenhum agricultor que o forneça (todos deixaram de o vender): fica sem stock */
+const soldOut = p => !!p && (p.outOfStock || noProducer(p));   // esgotado ou sem produtor
+const noProducer = p => !!p && p.cat !== 'caixas' && !offersOf(p).length;
 function inSeason(p) { if (!p.season) return true; const [a, b] = p.season; return a <= b ? NOW_M >= a && NOW_M <= b : NOW_M >= a || NOW_M <= b; }
 function harvestOf(p) {
   if (p.harvest == null || !inSeason(p)) return null;
@@ -109,6 +112,13 @@ function producersLine(p) {
   return farmersOf(p).map(fid => { const f = F(fid), kinds = offersOf(p).filter(o => o.farmer === fid).map(o => bioName(o.organic).toLowerCase());
     return `<a href="${farmerHref(f)}">${esc(f.name)}</a> <span class="small muted">(${esc(f.place)}${both ? ': ' + kinds.join(T(' e ', ' and ')) : ''})</span>`; }).join(', ');
 }
+/* ---------- Colhe Connosco: cada dia tem um id (pode haver vários dias na mesma data, em quintas diferentes) ----------
+   As inscrições guardam o id do dia (day) e a data (date); inscrições antigas só com a data apontam para o primeiro dia dessa data. */
+const dayIdOf = d => d.id || `${d.date}-${d.farmer}`;
+const HD = id => HARVEST_DAYS.find(d => d.id === id);
+const hDay = h => (h.day ? HD(h.day) : HARVEST_DAYS.find(d => d.date === h.date)) || null;
+const hIs = (h, d) => (h.day ? h.day === d.id : (hDay(h) || {}).id === d.id);
+const newDayId = (date, farmer) => { let id = `${date}-${farmer}`, n = 2; while (HD(id)) id = `${date}-${farmer}-${n++}`; return id; };
 /* ---------- Colhe Connosco: início e fim de cada dia (a partir do horário "9h30–12h30") ----------
    Avaliações: abrem no início do dia e fecham 48 horas depois do fim. */
 function harvestWindow(d) {
@@ -131,11 +141,19 @@ const timeBad = pre => $(`#${pre}-fim`).value <= $(`#${pre}-ini`).value ? T('A h
 const harvestStarted = d => new Date() >= harvestWindow(d).start;
 const harvestPast = d => new Date() >= harvestWindow(d).end;
 const harvestRateOpen = d => { const w = harvestWindow(d), n = new Date(); return n >= w.start && n <= w.close; };
+/* produto de um dia Colhe Connosco (pelo nome) e registos de colheita de um cliente (identificador CC-aammdd-nnnn; aparecem nas encomendas) */
+const dayProduct = d => P(d.product) || PRODUCTS.find(p => p.cat !== 'caixas' && p.name.pt === (d.what || {}).pt) || null;
+function recId(h, d, un) { if (h.record && h.record.id) return h.record.id; let n = 0; for (const c of String(un) + d.id) n = (n * 31 + c.charCodeAt(0)) % 9000; return `CC-${d.date.slice(2).replace(/-/g, '')}-${1000 + n}`; }
+const recText = (rec, d) => [rec.kg != null ? `${numFmt(rec.kg)} kg ${T('de', 'of')} ${esc(L(d.what))}` : '', rec.price != null ? `${money(rec.price)} ${T('pagos', 'paid')}` : '', rec.note ? esc(rec.note) : ''].filter(Boolean).join(' · ');
+function harvestRecords(u) { return (u.harvests || []).filter(h => h.record).map(h => ({ h, d: hDay(h), rec: h.record })).filter(x => x.d).sort((a, b) => String(b.rec.at || b.d.date).localeCompare(String(a.rec.at || a.d.date))); }
+/* texto do IVA, junto a cada divisão do preço */
+const VAT_NOTE = () => T('A divisão é feita sobre o valor sem IVA. Os preços mostrados já incluem IVA (6%).', 'The split is of the price before VAT. The prices shown already include VAT (6%).');
 const stars = n => `<span class="stars" role="img" aria-label="${n} ${T('de 5 estrelas', 'out of 5 stars')}">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= n ? 'on' : ''}">★</i>`).join('')}</span>`;
 /* resumo de um dia: participantes, avaliações (sem nomes) e quilos registados */
-function harvestSummary(date) {
-  if (NUVEM.on && !NUVEM.isAdmin() && NUVEM.farmerHarvest && NUVEM.farmerHarvest[date]) return NUVEM.farmerHarvest[date];
-  const rows = Object.values(USERS).flatMap(u => (u.harvests || []).filter(h => h.date === date).map(h => Object.assign({ user: u }, h)));
+function harvestSummary(id) {
+  if (NUVEM.on && !NUVEM.isAdmin() && NUVEM.farmerHarvest && NUVEM.farmerHarvest[id]) return NUVEM.farmerHarvest[id];
+  const d = HD(id); if (!d) return { people: 0, n: 0, avg: 0, comments: [], kg: 0 };
+  const rows = Object.values(USERS).flatMap(u => (u.harvests || []).filter(h => hIs(h, d)).map(h => Object.assign({ user: u }, h)));
   const rated = rows.filter(h => h.rating);
   return { people: rows.reduce((n, h) => n + (+h.people || 1), 0), n: rated.length, avg: rated.length ? rated.reduce((a, h) => a + +h.rating, 0) / rated.length : 0,
     comments: rated.map(h => ({ rating: +h.rating, comment: h.comment || '' })), kg: round2(rows.reduce((a, h) => a + (h.record && +h.record.kg || 0), 0)) };
@@ -151,7 +169,17 @@ function otag(p, big = false) {
   return `<span class="otag${big ? ' big' : ''}${h ? '' : ' off'}"><b>${esc(f.name)}, ${esc(f.place)}${more ? ` ${T(`e mais ${more}`, `and ${more} more`)}` : ''}</b><span>${line}</span></span>`;
 }
 /* ícone de cada produto: ficheiro img/produtos/<id>.svg (pode ser editado ou substituído) */
-function artFor(p, cls = '') { return `<img class="picon ${cls}" src="${R}img/produtos/${p.icon || p.id}.svg" alt="" loading="lazy" decoding="async">`; }
+function artFor(p, cls = '') { return p.photo ? `<img class="picon photo ${cls}" src="${esc(p.photo)}" alt="" loading="lazy" decoding="async">` : `<img class="picon ${cls}" src="${R}img/produtos/${p.icon || p.id}.svg" alt="" loading="lazy" decoding="async">`; }
+/* desenhos que existem em img/produtos (um por produto) para escolher a imagem de um produto novo */
+const ICON_CHOICES = () => [['_novo', T('Desenho genérico', 'Generic drawing')]].concat(PRODUCTS.filter(p => p.cat !== 'caixas' && !p.photo).map(p => [p.icon || p.id, L(p.name)]).filter((x, i, a) => x[0] !== '_novo' && a.findIndex(y => y[0] === x[0]) === i).sort((a, b) => a[1].localeCompare(b[1])));
+/* fotografia escolhida no telemóvel/computador: reduzida para no máximo 900 px (JPEG) antes de guardar ou enviar */
+function shrinkImage(file, max = 900) {
+  return new Promise((ok, no) => { const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => { const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url); c.toBlob(b => (b ? ok(b) : no(new Error('imagem'))), 'image/jpeg', 0.8); };
+    img.onerror = () => { URL.revokeObjectURL(url); no(new Error('imagem')); }; img.src = url; });
+}
+const blobToDataURL = b => new Promise(ok => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(b); });
 const isFav = id => { const u = currentUser(); return !!u && (u.favs || []).includes(id); };
 function favBtn(id, big = false) { const on = isFav(id); return `<button class="fav${big ? ' big' : ''}" data-fav="${id}" aria-pressed="${on}" aria-label="${on ? T('Remover dos favoritos', 'Remove from favourites') : T('Adicionar aos favoritos', 'Add to favourites')}">${icon('heart', big ? 22 : 18)}</button>`; }
 function toggleFav(id) {
@@ -182,7 +210,7 @@ function trackHTML(o) {
 function badges(p) {
   const b = [];
   if (!inSeason(p)) b.push(`<span class="badge off">${T('Fora de época', 'Out of season')}</span>`);
-  else if (p.outOfStock) b.push(`<span class="badge nostock">${T('Fora de stock', 'Out of stock')}</span>`);
+  else if (soldOut(p)) b.push(`<span class="badge nostock">${T('Fora de stock', 'Out of stock')}</span>`);
   if (p.essential) b.push(`<span class="badge">${T('Essencial', 'Essential')}</span>`);
   if (hasBio(p)) b.push(`<span class="badge bio">${hasConv(p) ? T('Também biológico', 'Organic too') : T('Biológico', 'Organic')}</span>`);
   if (p.cat === 'caixas') b.push(`<span class="badge sub">${T('Também em subscrição', 'Also by subscription')}</span>`);
@@ -207,7 +235,7 @@ function pcard(p) {
   const unitExtra = p.cat === 'caixas' ? `<span>${p.kg} kg, ${money(p.price / p.kg)}/kg</span>` : `<span>${unitLabel(p.unit)}</span>`;
   const btn = p.cat === 'caixas'
     ? `<a class="btn btn-green btn-sm" href="${url}">${T('Escolher tamanho', 'Choose size')}</a>`
-    : on && p.outOfStock ? `<button class="btn btn-line btn-sm" data-notify="${p.id}" aria-pressed="${notifyOn(p.id)}">${icon('bell', 18)}${notifyOn(p.id) ? T('Aviso ativo', 'Reminder on') : T('Esgotado: avisar-me', 'Sold out: notify me')}</button>`
+    : on && soldOut(p) ? `<button class="btn btn-line btn-sm" data-notify="${p.id}" aria-pressed="${notifyOn(p.id)}">${icon('bell', 18)}${notifyOn(p.id) ? T('Aviso ativo', 'Reminder on') : T('Esgotado: avisar-me', 'Sold out: notify me')}</button>`
     : on ? `<button class="btn btn-green btn-sm" data-add="${p.id}">${icon('basket', 18)}${T('Adicionar ao cabaz', 'Add to basket')}</button>`
       : `<button class="btn btn-line btn-sm" data-notify="${p.id}" aria-pressed="${notifyOn(p.id)}">${icon('bell', 18)}${notifyOn(p.id) ? T('Aviso ativo', 'Reminder on') : T('Avisar-me', 'Notify me')}</button>`;
   return `<article class="pcard${on ? '' : ' is-off'}">${favBtn(p.id)}
@@ -253,7 +281,7 @@ const FORM_KEYS = { 'f-n': 'name', 'f-c': 'contact', 'fa-n': 'name', 'fa-t': 'ph
 const REQ_LABELS = () => ({ name: T('Nome', 'Name'), phone: T('Telemóvel', 'Mobile'), contact: T('E-mail ou telemóvel', 'Email or mobile'), town: T('Localidade', 'Town'), area: T('Área aproximada', 'Approximate area'),
   crops: T('O que produz', 'What they grow'), restaurant: T('Restaurante', 'Restaurant'), person: T('Responsável', 'Contact person'), message: T('Mensagem', 'Message'), pref: T('Prefere encomendar', 'Prefers to order'),
   order: T('Encomenda', 'Order'), result: T('Resultado', 'Result'), state: T('Estado', 'Status'), action: T('Ação', 'Action'), from: T('De', 'From'), to: T('Para', 'To'), product: T('Produto', 'Product'),
-  what: T('O que aconteceu', 'What happened'), remedy: T('Preferência', 'Preference'), photo: T('Fotografia', 'Photo'), farm: T('Quinta', 'Farm'), region: T('Região', 'Region'), kind: T('Tipo de cozinha', 'Cuisine'),
+  what: T('O que aconteceu', 'What happened'), remedy: T('Preferência', 'Preference'), photo: T('Fotografia', 'Photo'), icon: T('Desenho na loja', 'Shop drawing'), farm: T('Quinta', 'Farm'), region: T('Região', 'Region'), kind: T('Tipo de cozinha', 'Cuisine'),
   date: T('Data', 'Date'), time: T('Horário', 'Time'), spots: T('Lugares', 'Places'), price: T('Preço sugerido', 'Suggested price'), unit: T('Unidade', 'Unit'), season: T('Época', 'Season'), qty: T('Quantidade', 'Quantity'),
   period: T('Período', 'Period'), namePt: T('Nome (PT)', 'Name (PT)'), nameEn: T('Nome (EN)', 'Name (EN)'), cat: T('Categoria', 'Category'), desc: T('Descrição', 'Description'), descEn: T('Descrição (EN)', 'Description (EN)'),
   organic: T('Modo de produção', 'Farming method'), productId: T('Produto do catálogo', 'Catalogue product') });

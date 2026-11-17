@@ -53,7 +53,7 @@ function tabPedidos() {
     <div class="row-between"><div class="row-gap"><span class="rtype t-${r.type}">${types[r.type] || r.type}</span><b>${r.id}</b>${r.order ? `<span class="small">${T('Encomenda', 'Order')} ${r.order}</span>` : ''}${decisionBadge(r)}</div>
       <span class="small muted">${fdate(r.created, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
     <p class="small mt-s">${T('De', 'From')}: ${who(r)}</p>
-    <dl class="req-f">${Object.entries(r.fields || {}).map(([k, v]) => `<div><dt>${esc(labels[k] || k)}</dt><dd>${k === 'photo' && /^https?:\/\//.test(v) ? `<a href="${esc(v)}" target="_blank" rel="noopener"><img class="req-photo" src="${esc(v)}" alt="${T('Fotografia da incidência', 'Problem photo')}"></a>` : esc(reqValue(k, v))}</dd></div>`).join('')}</dl>
+    <dl class="req-f">${Object.entries(r.fields || {}).map(([k, v]) => `<div><dt>${esc(labels[k] || k)}</dt><dd>${k === 'photo' && /^(https?:\/\/|data:image\/)/.test(v) ? `<a href="${esc(v)}" target="_blank" rel="noopener"><img class="req-photo" src="${esc(v)}" alt="${r.type === 'produto' ? T('Fotografia do produto', 'Product photo') : T('Fotografia da incidência', 'Problem photo')}"></a>` : k === 'icon' && v ? `<img class="req-photo icon" src="${R}img/produtos/${esc(v)}.svg" alt="">` : esc(reqValue(k, v))}</dd></div>`).join('')}</dl>
     ${r.reply ? `<p class="note small mt-s">${icon('inbox', 18)}<span><b>${T('Mensagem enviada ao parceiro', 'Message sent to the partner')}:</b> ${esc(r.reply)}</span></p>` : ''}
     ${canApprove(r) ? `${mergeChoice(r)}<div class="field mt-s"><label for="rq-msg-${r.id}">${T('Mensagem para o parceiro (opcional)', 'Message to the partner (optional)')}</label><textarea id="rq-msg-${r.id}" rows="2" placeholder="${T('Aparece na conta do parceiro e na notificação do telemóvel.', 'Shows in the partner\'s account and in the phone notification.')}"></textarea></div>
       <p class="small muted">${approveLabel(r)}</p>` : ''}
@@ -67,7 +67,7 @@ function tabPedidos() {
 function uniqueId(base, list) { let id = slugify(base) || 'novo', n = 2; while (list.some(x => x.id === id)) id = `${slugify(base)}-${n++}`; return id; }
 /* produtos com vários produtores: grava a lista de produtores e o que depende dela */
 function saveOffers(p, offers, extra = {}) {
-  const o = Object.assign({ producers: offers, organic: offers.some(x => x.organic), outOfStock: offers.length > 0 && offers.every(x => x.outOfStock), farmer: p.farmer && offers.some(x => x.farmer === p.farmer) ? p.farmer : (offers[0] || {}).farmer || p.farmer }, extra);
+  const o = Object.assign({ producers: offers, organic: offers.some(x => x.organic), outOfStock: !offers.length || offers.every(x => x.outOfStock), farmer: p.farmer && offers.some(x => x.farmer === p.farmer) ? p.farmer : offers.length ? offers[0].farmer : null }, extra);
   saveCatalog(ch => { ch.products = ch.products || {}; ch.products[p.id] = Object.assign(ch.products[p.id] || {}, o); });
 }
 /* mais um produtor (convencional ou biológico) num produto que já existe */
@@ -75,7 +75,7 @@ function addOffer(p, fid, organic) {
   const offers = offersOf(p).map(o => Object.assign({}, o));
   if (offers.some(o => o.farmer === fid && !!o.organic === !!organic)) return false;
   const extra = {};
-  if (!hasConv(p) && !organic) extra.price = round2(p.price / (1 + BIO_EXTRA));   // era só biológico: o preço passa a ser o do convencional
+  if (offersOf(p).length && !hasConv(p) && !organic) extra.price = round2(p.price / (1 + BIO_EXTRA));   // era só biológico: o preço passa a ser o do convencional
   offers.push({ farmer: fid, organic: !!organic });
   saveOffers(p, offers, extra); return true;
 }
@@ -138,12 +138,14 @@ function approveRequest(r, msg = '') {
     if (target) { if (!addOffer(target, fid, organic)) toast(T(`${u.name} já vendia ${L(target.name)} (${bioName(organic).toLowerCase()}).`, `${u.name} already sold ${L(target.name)} (${bioName(organic).toLowerCase()}).`)); r.productId = target.id; }
     else {
       const [a, b] = String(f.season || '1-12').split('-').map(Number), id = uniqueId(f.namePt, PRODUCTS);
-      const np = { id, cat: f.cat === 'legumes' ? 'legumes' : 'fruta', name: { pt: f.namePt, en: f.nameEn || f.namePt }, price: +f.price || 1, unit: f.unit || 'kg', farmer: fid, icon: '_novo', season: [a || 1, b || 12], harvest: 2, essential: false, organic, producers: [{ farmer: fid, organic }], desc: { pt: f.desc || '', en: f.descEn || f.desc || '' } };
+      const np = { id, cat: f.cat === 'legumes' ? 'legumes' : 'fruta', name: { pt: f.namePt, en: f.nameEn || f.namePt }, price: +f.price || 1, unit: f.unit || 'kg', farmer: fid, icon: f.icon || '_novo', season: [a || 1, b || 12], harvest: 2, essential: false, organic, producers: [{ farmer: fid, organic }], desc: { pt: f.desc || '', en: f.descEn || f.desc || '' } };
+      if (f.photo && /^(https?:|data:image\/)/.test(f.photo)) np.photo = f.photo;
       saveCatalog(ch => { ch.newProducts = (ch.newProducts || []).concat(np); }); r.productId = id;
     }
   } else if (r.type === 'colhe') {
     if (!u.partner.farmerId) { toast(T('Aprove primeiro a quinta deste agricultor.', 'Approve this farmer\'s farm first.')); return false; }
-    const p = P(f.product); const day = { date: f.date, farmer: u.partner.farmerId, crop: p ? (p.art || 'alface') : 'alface', what: p ? { pt: p.name.pt, en: p.name.en } : { pt: f.product, en: f.product }, time: f.time || '10h–13h', spots: +f.spots || 20 };
+    if (HARVEST_DAYS.some(d => d.date === f.date && d.farmer === u.partner.farmerId)) { toast(T('Esta quinta já tem um dia Colhe Connosco nessa data.', 'This farm already has a Join the Harvest day on that date.')); return false; }
+    const p = P(f.product); const day = { id: newDayId(f.date, u.partner.farmerId), date: f.date, farmer: u.partner.farmerId, crop: p ? (p.art || 'alface') : 'alface', what: p ? { pt: p.name.pt, en: p.name.en } : { pt: f.product, en: f.product }, time: f.time || '10h–13h', spots: +f.spots || 20 };
     saveCatalog(ch => { ch.harvestDays = HARVEST_DAYS.map(d => Object.assign({}, d)).concat(day); });
   }
   if (u && u.partner && (r.type === 'agricultor' || r.type === 'selo')) { u.partner.rejected = false; u.partner.reply = msg || ''; }
@@ -236,17 +238,20 @@ function tabCaixas() {
 /* ---------- Colhe Connosco ---------- */
 /* dias que já começaram: avaliações dos participantes e registo da colheita de cada um */
 function harvestDoneCard(d) {
-  const f = F(d.farmer), list = harvestList(d.date), sm = harvestSummary(d.date), past = harvestPast(d), key = d.date;
-  const rid = un => `${key}-${un.replace(/[^a-z0-9]/g, '_')}`;
+  const f = F(d.farmer), list = harvestList(d.id), sm = harvestSummary(d.id), past = harvestPast(d), key = d.id, pr = dayProduct(d);
+  const rid = un => `${key}-${un}`.replace(/[^a-zA-Z0-9-]/g, '_');
   return `<article class="panel mt-s"><div class="row-between"><div><b>${slotLabel(d.date)}</b>, ${d.time}<br><span class="small muted">${f ? esc(f.farm) : d.farmer} · ${esc(L(d.what))}</span></div>
       <span class="status ${past ? 'pausada' : 'prog'}">${past ? T('Terminado', 'Finished') : T('A decorrer', 'In progress')}</span></div>
+    ${list.length ? `<p class="small muted mt-s">${T('Registo de colheita: quilos e valor pago por cada participante. O valor é sugerido a partir do preço da loja', 'Harvest record: kilos and amount paid by each participant. The amount is suggested from the shop price')}${pr ? ` (${money(pr.price)}${unitLabel(pr.unit)})` : ''}. ${T('O cliente vê o registo nas suas encomendas.', 'The customer sees the record in their orders.')}</p>` : ''}
     <p class="small mt-s">${sm.people} ${T('participantes', 'participants')} · ${sm.n ? `${stars(Math.round(sm.avg))} ${numFmt(round2(sm.avg))} (${sm.n} ${sm.n === 1 ? T('avaliação', 'review') : T('avaliações', 'reviews')})` : T('sem avaliações', 'no reviews')}${sm.kg ? ` · ${numFmt(sm.kg)} kg ${T('registados', 'recorded')}` : ''}</p>
-    ${list.length ? `<div class="tbl-wrap mt-s"><table class="tbl"><thead><tr><th>${T('Participante', 'Participant')}</th><th>${T('Avaliação', 'Review')}</th><th>${T('Registo de colheita', 'Harvest record')}</th></tr></thead><tbody>${list.map(x => { const h = (x.user.harvests || []).find(y => y.date === d.date) || {}, rec = h.record || {};
+    ${list.length ? `<div class="tbl-wrap mt-s"><table class="tbl"><thead><tr><th>${T('Participante', 'Participant')}</th><th>${T('Avaliação', 'Review')}</th><th>${T('Registo de colheita', 'Harvest record')}</th></tr></thead><tbody>${list.map(x => { const h = (x.user.harvests || []).find(y => hIs(y, d)) || {}, rec = h.record || {};
       return `<tr><td><b>${esc(x.user.name)}</b><br><span class="small muted">${esc(x.user.phone)} · ${x.people} ${x.people > 1 ? T('pessoas', 'people') : T('pessoa', 'person')}</span></td>
         <td>${h.rating ? `${stars(+h.rating)}${h.comment ? `<br><span class="small">${esc(h.comment)}</span>` : ''}` : `<span class="small muted">${harvestRateOpen(d) ? T('ainda não avaliou', 'not reviewed yet') : T('sem avaliação', 'no review')}</span>`}</td>
-        <td><div class="row-gap"><label class="sr" for="rg-kg-${rid(x.user.username)}">kg</label><input class="num" id="rg-kg-${rid(x.user.username)}" type="number" min="0" step="0.1" value="${rec.kg ?? ''}" placeholder="kg">
+        <td><div class="row-gap"><label class="sr" for="rg-kg-${rid(x.user.username)}">kg</label><input class="num" id="rg-kg-${rid(x.user.username)}" type="number" min="0" step="0.1" value="${rec.kg ?? ''}" placeholder="kg" data-rg-kg="${rid(x.user.username)}"${pr ? ` data-rg-unit="${pr.price}"` : ''}>
+          <label class="sr" for="rg-pr-${rid(x.user.username)}">${T('Valor pago (€)', 'Amount paid (€)')}</label><input class="num" id="rg-pr-${rid(x.user.username)}" type="number" min="0" step="0.01" value="${rec.price ?? ''}" placeholder="€"${rec.price != null ? ' data-touched="1"' : ''}>
           <label class="sr" for="rg-nt-${rid(x.user.username)}">${T('Nota', 'Note')}</label><input class="sel" id="rg-nt-${rid(x.user.username)}" value="${esc(rec.note || '')}" placeholder="${T('Nota (opcional)', 'Note (optional)')}">
-          <button class="btn btn-line btn-sm c-campo" data-reg-save="${d.date}|${x.user.username}">${rec.at ? T('Atualizar', 'Update') : T('Registar', 'Record')}</button></div></td></tr>`; }).join('')}</tbody></table></div>` : `<p class="small muted mt-s">${T('Sem inscritos.', 'No sign-ups.')}</p>`}
+          <button class="btn btn-line btn-sm c-campo" data-reg-save="${d.id}|${x.user.username}">${rec.at ? T('Atualizar', 'Update') : T('Registar', 'Record')}</button></div>
+          ${rec.at ? `<span class="small muted">${recId(h, d, x.user.username)}</span>` : ''}</td></tr>`; }).join('')}</tbody></table></div>` : `<p class="small muted mt-s">${T('Sem inscritos.', 'No sign-ups.')}</p>`}
   </article>`;
 }
 function tabColhe() {
@@ -255,10 +260,10 @@ function tabColhe() {
   return `<section class="acc-sec"><h2>${JTH()}</h2>
     <h3 class="mt-s">${T('Próximos dias', 'Upcoming days')}</h3><p class="muted mt-s mb-s">${T('Altere o número máximo de participantes, apague dias ou crie dias novos numa quinta parceira. Os agricultores também podem editar os seus dias até começarem.', 'Change the maximum number of participants, delete days or create new days on a partner farm. Farmers can also edit their own days until they start.')}</p>
     <div class="tbl-wrap"><table class="tbl"><thead><tr><th>${T('Dia', 'Day')}</th><th>${T('Quinta e produto', 'Farm and produce')}</th><th>${T('Horário', 'Time')}</th><th>${T('Máximo', 'Maximum')}</th><th>${T('Inscritos', 'Signed up')}</th><th></th></tr></thead><tbody>
-    ${upcoming.map(d => { const f = F(d.farmer), list = harvestList(d.date), n = harvestPeople(d.date); return `<tr><td>${slotLabel(d.date)}</td><td>${f ? esc(f.farm) : d.farmer}<br><span class="small muted">${esc(L(d.what))}</span></td><td>${d.time}</td>
-      <td><input class="num" type="number" min="${n}" value="${d.spots}" data-day-spots="${d.date}" aria-label="${T('Máximo de participantes', 'Maximum participants')}"></td>
+    ${upcoming.map(d => { const f = F(d.farmer), list = harvestList(d.id), n = harvestPeople(d.id); return `<tr><td>${slotLabel(d.date)}</td><td>${f ? esc(f.farm) : d.farmer}<br><span class="small muted">${esc(L(d.what))}</span></td><td>${d.time}</td>
+      <td><input class="num" type="number" min="${n}" value="${d.spots}" data-day-spots="${d.id}" aria-label="${T('Máximo de participantes', 'Maximum participants')}"></td>
       <td>${n}${list.length ? `<details><summary class="small link">${T('ver lista', 'see list')}</summary><ul class="small plain-ul">${list.map(x => `<li>${esc(x.user.name)}, ${esc(x.user.phone)} (${x.people})</li>`).join('')}</ul></details>` : ''}</td>
-      <td><button class="rm" data-day-del="${d.date}" aria-label="${T('Apagar dia', 'Delete day')}">${icon('trash', 18)}</button></td></tr>`; }).join('')}</tbody></table></div>
+      <td><button class="rm" data-day-del="${d.id}" aria-label="${T('Apagar dia', 'Delete day')}">${icon('trash', 18)}</button></td></tr>`; }).join('')}</tbody></table></div>
     <form class="form panel mt" data-newday novalidate><h3>${T('Adicionar dia', 'Add a day')}</h3>
       <div class="row"><div class="field"><label for="nd-date">${T('Data', 'Date')}</label><input id="nd-date" type="date" min="${iso(today())}" required></div>
         ${timeFields('nd')}</div>
@@ -326,13 +331,13 @@ PAGE_EVENTS.click.push((e, t, d) => {
   if (d.approve) { const r = REQUESTS.find(x => x.id === d.approve), msg = ($('#rq-msg-' + r.id)?.value || '').trim(); if (approveRequest(r, msg)) toast(T('Aprovado e publicado. O parceiro foi avisado.', 'Approved and published. The partner has been notified.')); rerenderKeep(); return true; }
   if (d.reject) { const r = REQUESTS.find(x => x.id === d.reject), msg = ($('#rq-msg-' + r.id)?.value || '').trim(); rejectRequest(r, msg); toast(T('Pedido rejeitado. O parceiro foi avisado.', 'Request rejected. The partner has been notified.')); rerenderKeep(); return true; }
   if (d.merge) { const [keep, ...drop] = d.merge.split(',').map(P); drop.forEach(x => mergeProducts(keep, x)); toast(T(`Produtos juntados em ${L(keep.name)}`, `Products merged into ${L(keep.name)}`)); rerenderKeep(); return true; }
-  if (d.regSave) { const [date, un] = d.regSave.split('|'), u = USERS[un], h = u && (u.harvests || []).find(x => x.date === date); if (!h) return true;
-    const rid = `${date}-${un.replace(/[^a-z0-9]/g, '_')}`, kg = $('#rg-kg-' + rid).value, note = $('#rg-nt-' + rid).value.trim();
-    h.record = kg === '' && !note ? null : { kg: kg === '' ? null : round2(Math.max(0, +kg)), note, at: nowISO() }; if (!h.record) delete h.record; saveUsers(); toast(T(`Registo guardado: ${u.name}`, `Record saved: ${u.name}`)); rerenderKeep(`[data-reg-save="${d.regSave}"]`); return true; }
+  if (d.regSave) { const [id, un] = d.regSave.split('|'), u = USERS[un], dd = HD(id), h = u && dd && (u.harvests || []).find(x => hIs(x, dd)); if (!h) return true;
+    const rid = `${id}-${un}`.replace(/[^a-zA-Z0-9-]/g, '_'), kg = $('#rg-kg-' + rid).value, pr = $('#rg-pr-' + rid).value, note = $('#rg-nt-' + rid).value.trim();
+    h.record = kg === '' && pr === '' && !note ? null : { id: recId(h, dd, un), kg: kg === '' ? null : round2(Math.max(0, +kg)), price: pr === '' ? null : round2(Math.max(0, +pr)), note, at: nowISO() }; if (!h.record) delete h.record; saveUsers(); toast(T(`Registo guardado: ${u.name}`, `Record saved: ${u.name}`)); rerenderKeep(`[data-reg-save="${d.regSave}"]`); return true; }
   if (d.delProd && NUVEM.on) { NUVEM.deleteProduct(d.delProd); const i = PRODUCTS.findIndex(p => p.id === d.delProd); if (i >= 0) PRODUCTS.splice(i, 1); toast(T('Produto apagado', 'Product deleted')); rerenderKeep(); return true; }
   if (d.delProd) { saveCatalog(ch => { ch.newProducts = (ch.newProducts || []).filter(x => x.id !== d.delProd); if (ch.products) delete ch.products[d.delProd]; }); const i = PRODUCTS.findIndex(p => p.id === d.delProd); if (i >= 0 && !(SAVED_CHANGES.newProducts || []).some(x => x.id === d.delProd)) PRODUCTS.splice(i, 1); toast(T('Produto apagado', 'Product deleted')); rerenderKeep(); return true; }
   if (d.dayDel) { const n = harvestPeople(d.dayDel); if (n && !t.dataset.confirm) { t.dataset.confirm = '1'; toast(T(`Este dia tem ${n} inscritos. Carregue outra vez para apagar.`, `This day has ${n} people signed up. Click again to delete.`)); return true; }
-    saveCatalog(ch => { ch.harvestDays = HARVEST_DAYS.filter(x => x.date !== d.dayDel).map(x => Object.assign({}, x)); }); toast(T('Dia apagado', 'Day deleted')); rerenderKeep(); return true; }
+    saveCatalog(ch => { ch.harvestDays = HARVEST_DAYS.filter(x => x.id !== d.dayDel).map(x => Object.assign({}, x)); }); toast(T('Dia apagado', 'Day deleted')); rerenderKeep(); return true; }
   if ('exportDl' in d) { const blob = new Blob([exportChangesFile()], { type: 'text/javascript' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'alteracoes.js'; document.body.appendChild(a); a.click(); a.remove(); toast(T('Ficheiro descarregado: substitua js/alteracoes.js', 'File downloaded: replace js/alteracoes.js')); return true; }
   if ('exportCopy' in d) { const ta = $('#export-code'); ta.select(); try { navigator.clipboard.writeText(ta.value).then(() => toast(T('Código copiado', 'Code copied')), () => { document.execCommand('copy'); toast(T('Código copiado', 'Code copied')); }); } catch (err) { document.execCommand('copy'); toast(T('Código copiado', 'Code copied')); } return true; }
   if ('catalogReset' in d) { resetCatalog(); location.reload(); return true; }
@@ -355,10 +360,15 @@ PAGE_EVENTS.change.push((e, t) => {
   }
   if (d.catf !== undefined && t.id === 'cat-f') { catFilter = t.value; $('#cat-body').innerHTML = catRows(); return; }
   if (d.boxPrice) { const [id, sz] = d.boxPrice.split(':'), v = Math.max(0, +t.value || 0); saveCatalog(ch => { ch.boxes = ch.boxes || {}; ch.boxes[id] = Object.assign(ch.boxes[id] || {}, { [sz]: +v.toFixed(2) }); }); Object.values(USERS).forEach(c => (c.subs || []).forEach(sb => refreshSub(sb))); saveUsers(); toast(T('Preço da caixa atualizado', 'Box price updated')); rerenderKeep(`[data-box-price="${d.boxPrice}"]`); return; }
-  if (d.daySpots) { const v = Math.max(+t.min || 1, +t.value || 1); saveCatalog(ch => { ch.harvestDays = HARVEST_DAYS.map(x => Object.assign({}, x, x.date === d.daySpots ? { spots: v } : {})); }); toast(T(`Máximo de participantes: ${v}`, `Maximum participants: ${v}`)); return; }
+  if (d.daySpots) { const v = Math.max(+t.min || 1, +t.value || 1); saveCatalog(ch => { ch.harvestDays = HARVEST_DAYS.map(x => Object.assign({}, x, x.id === d.daySpots ? { spots: v } : {})); }); toast(T(`Máximo de participantes: ${v}`, `Maximum participants: ${v}`)); return; }
   if (d.ndFarm !== undefined && t.id === 'nd-farm') { $('#nd-prod').innerHTML = ofFarmer(t.value).map(p => `<option value="${p.id}">${esc(L(p.name))}</option>`).join(''); return; }
 });
-PAGE_EVENTS.input.push((e, t) => { if (adminOnly() && t.id === 'cat-q') { catQuery = t.value; $('#cat-body').innerHTML = catRows(); } });
+PAGE_EVENTS.input.push((e, t) => {
+  if (adminOnly() && t.id === 'cat-q') { catQuery = t.value; $('#cat-body').innerHTML = catRows(); }
+  /* registo de colheita: o valor pago é sugerido (quilos × preço da loja) até a gestão o escrever à mão */
+  if (t.dataset.rgKg) { const pr = $('#rg-pr-' + t.dataset.rgKg); if (pr && !pr.dataset.touched && t.dataset.rgUnit && t.value !== '') pr.value = round2(+t.value * +t.dataset.rgUnit).toFixed(2); }
+  if (t.id && t.id.startsWith('rg-pr-')) t.dataset.touched = '1';
+});
 PAGE_EVENTS.submit.push((e, f) => {
   if (!adminOnly()) return;
   if (f.matches('[data-newprod]')) {
@@ -372,8 +382,8 @@ PAGE_EVENTS.submit.push((e, f) => {
     e.preventDefault(); if (!validate(f)) return true;
     const p = P($('#nd-prod').value), date = $('#nd-date').value;
     if (timeBad('nd')) { const err = $('.err', f); err.hidden = false; err.textContent = timeBad('nd'); $('#nd-fim').focus(); return true; }
-    if (HARVEST_DAYS.some(x => x.date === date)) { const err = $('.err', f); err.hidden = false; err.textContent = T('Já existe um dia Colhe Connosco nessa data.', 'There is already a Join the Harvest day on that date.'); return true; }
-    const day = { date, farmer: $('#nd-farm').value, crop: p ? p.art || 'alface' : 'alface', what: p ? { pt: p.name.pt, en: p.name.en } : { pt: '-', en: '-' }, time: timeText($('#nd-ini').value, $('#nd-fim').value), spots: +$('#nd-spots').value || 20 };
+    if (HARVEST_DAYS.some(x => x.date === date && x.farmer === $('#nd-farm').value)) { const err = $('.err', f); err.hidden = false; err.textContent = T('Esta quinta já tem um dia Colhe Connosco nessa data. Pode haver vários dias na mesma data, mas em quintas diferentes.', 'This farm already has a Join the Harvest day on that date. Several days can share a date, but on different farms.'); return true; }
+    const day = { id: newDayId(date, $('#nd-farm').value), date, farmer: $('#nd-farm').value, crop: p ? p.art || 'alface' : 'alface', what: p ? { pt: p.name.pt, en: p.name.en } : { pt: '-', en: '-' }, time: timeText($('#nd-ini').value, $('#nd-fim').value), spots: +$('#nd-spots').value || 20 };
     saveCatalog(ch => { ch.harvestDays = HARVEST_DAYS.map(x => Object.assign({}, x)).concat(day); }); toast(T('Dia Colhe Connosco criado', 'Join the Harvest day created')); rerenderKeep(); return true;
   }
 });

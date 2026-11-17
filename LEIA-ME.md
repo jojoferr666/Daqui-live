@@ -78,6 +78,7 @@ No menu da esquerda, **SQL Editor** → *New query*. Para cada ficheiro da pasta
 | `supabase/03-contas.sql` | Cria as 27 contas de demonstração (clientes, gestão, uma por quinta e uma por restaurante), com subscrições, inscrições, encomendas e pedidos de exemplo. |
 | `supabase/04-app.sql` | Para a app: telemóveis que recebem notificações, fotografias das incidências (Storage, pasta `incidencias`) e "deslizar para confirmar" o levantamento. Corra também se só usar o site: as fotografias das incidências do site usam-no. |
 | `supabase/06-melhorias.sql` | Versão 7: vários produtores por produto e escolha convencional/biológico, aprovar ou rejeitar pedidos com mensagem, edição e avaliações do Colhe Connosco, registo da colheita e "Falar com a Daqui". Corra-o **antes** de enviar a versão 7 do site. Pode ser corrido mais do que uma vez. |
+| `supabase/07-colhe-e-produtos.sql` | Versão 9: vários dias Colhe Connosco na mesma data (cada dia tem um id), avaliação só uma vez, registo da colheita com valor pago, "Deixar de vender" e fotografias de produtos novos. Corra-o **antes** de enviar a versão 9 do site, depois do 06. Depois do 07, não volte a correr o 06. |
 | `supabase/05-notificacoes.sql` | Só para as notificações da app Android, **depois** de criar a função `notificar` (ver `LEIA-ME-APP.md` do projeto `daqui-android`). Antes de correr, troque as 2 linhas marcadas com `<<<`. |
 
 Para confirmar: **Table Editor** → tabela `perfis` deve ter 27 linhas e `produtos` 94.
@@ -232,7 +233,7 @@ js/                         ver tabela abaixo
 ferramentas/                scripts para gerar páginas, ícones, análises e o SQL da base de dados
 app/index.html              a app para telemóvel (secção 23); app/manifest.webmanifest, app/sw.js, app/icones/
 css/app.css                 estilos só da app (tudo começa por body.app)
-supabase/                   01-estrutura.sql … 06-melhorias.sql (secção 2)
+supabase/                   01-estrutura.sql … 07-colhe-e-produtos.sql (secção 2)
 supabase/funcoes/notificar/index.ts   função do Supabase que envia as notificações (Firebase)
 LEIA-ME.md                  este ficheiro
 ```
@@ -593,3 +594,22 @@ Base de dados: corra `supabase/06-melhorias.sql` (uma vez; pode repetir). Sem el
 - **Login sem contas de demonstração**: a página Entrar (site e app) já não mostra a lista de contas nem as palavras-passe. As contas continuam a existir.
 - **Alterar palavra-passe**: em *Dados da conta* (site: A minha conta → Dados; app: Conta → Dados e morada; gestão na app: Mais → Dados e palavra-passe) há "Alterar palavra-passe". Pede a palavra-passe atual, a nova (mínimo 8 caracteres) e a repetição. Com base de dados, a troca é feita no Supabase Auth; sem base de dados, fica guardada neste navegador.
 - Ficheiros alterados: js/app.js, js/auth.js, js/nuvem.js, js/pages-conta.js, js/pages-gestao.js, js/pages-parceiro.js, js/app-movel.js, css/styles.css, app/index.html, app/sw.js, ferramentas/gerar-paginas.py. Sem SQL novo.
+
+
+## 26. Versão 9: o que mudou
+
+Base de dados: corra `supabase/07-colhe-e-produtos.sql` (depois do 06; pode repetir). Não volte a correr o 06 depois do 07.
+
+| Ponto | O que mudou |
+| --- | --- |
+| Subscrição na app | Ao configurar uma subscrição, o tamanho, a frequência, o dia e a forma de receber já mudam (antes voltavam ao início em cada toque). |
+| Colhe Connosco | Pode haver vários dias na mesma data, em quintas diferentes (a mesma quinta só tem um dia por data). Cada dia tem um id; as inscrições ficam ligadas ao dia. |
+| Produtos | O agricultor pode "Deixar de vender" um produto. Sem nenhum produtor, o produto fica sem stock. A página do produto mostra um cartão por agricultor. |
+| Filtros na app | Botão "Filtros" na loja: categoria, disponibilidade, modo de produção, região e preço (desde/até). O site também passou a ter preço desde/até. |
+| IVA | Junto à divisão do preço: a divisão é do valor sem IVA; os preços mostrados já incluem IVA (6%). |
+| Informação do produto | A app mostra o mesmo texto do site em Análises, Mais sobre o produto e Envio e entrega. |
+| Registo de colheita | A gestão regista quilos e valor pago (sugerido: quilos × preço da loja). O registo tem um identificador (CC-aammdd-nnnn) e aparece nas encomendas do cliente. A avaliação só se envia uma vez. |
+| Conta na app | Sem a lista de encomendas no topo. "Favoritos, exclusões e avisos" inclui "Avisar-me quando voltar" (com notificação quando o produto volta à época ou ao stock). |
+| Produto novo | O agricultor escolhe o desenho ou carrega uma fotografia (vai para a pasta "produtos" do Storage). |
+| Início da app | Desliza-se entre a próxima entrega e todas as subscrições, também as que estão em pausa. |
+| A minha conta (site) | Separadores com ícone, texto centrado e o mesmo estilo dos botões. |

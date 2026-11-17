@@ -62,12 +62,15 @@ const NUVEM = (() => {
   /* ---------- conversões base de dados <-> objetos do site ---------- */
   const BASE_IDS = { p: new Set(CATALOG_BASE.products.map(x => x.id)), f: new Set(CATALOG_BASE.farmers.map(x => x.id)), r: new Set(CATALOG_BASE.restaurants.map(x => x.id)) };
   const J = v => JSON.stringify(v);
+  /* id do dia Colhe Connosco de uma inscrição (as antigas só tinham a data) */
+  const hKey = h => h.day || (HARVEST_DAYS.find(d => d.date === h.date) || {}).id || h.date;
   const toProd = r => {
     const p = Object.assign({}, r.extra || {}, { id: r.id, cat: r.categoria, name: { pt: r.nome_pt, en: r.nome_en }, price: +r.preco, unit: r.unidade, farmer: r.agricultor,
       season: [r.epoca_inicio, r.epoca_fim], essential: !!r.essencial, organic: !!r.biologico, desc: { pt: r.desc_pt || '', en: r.desc_en || '' } });
     if (r.desenho) p.art = r.desenho;
     if (r.colheita != null && r.colheita !== '') p.harvest = /^\d+$/.test(r.colheita) ? +r.colheita : r.colheita;
     if (r.icone) p.icon = r.icone;
+    if (r.foto) p.photo = r.foto;
     if (r.fora_stock) p.outOfStock = true;
     if (Array.isArray(r.divisao)) p.split = r.divisao;
     if (Array.isArray(r.produtores) && r.produtores.length) p.producers = r.produtores.map(o => ({ farmer: o.farmer, organic: !!o.organic, outOfStock: !!o.outOfStock }));
@@ -78,12 +81,12 @@ const NUVEM = (() => {
   const offersRow = v => (Array.isArray(v) && v.length ? v.map(o => ({ farmer: o.farmer, organic: !!o.organic, outOfStock: !!o.outOfStock })) : null);
   const fromProd = (p, ordem) => ({ id: p.id, categoria: p.cat, nome_pt: p.name.pt, nome_en: p.name.en || p.name.pt, preco: +p.price, unidade: p.unit || 'kg', agricultor: p.farmer || null,
     desenho: p.art || null, icone: p.icon || null, epoca_inicio: p.season[0], epoca_fim: p.season[1], colheita: p.harvest == null ? null : String(p.harvest),
-    essencial: !!p.essential, biologico: !!p.organic, fora_stock: !!p.outOfStock, divisao: p.split || null, desc_pt: (p.desc || {}).pt || '', desc_en: (p.desc || {}).en || '', ordem,
+    essencial: !!p.essential, biologico: !!p.organic, fora_stock: !!p.outOfStock, divisao: p.split || null, foto: p.photo || null, desc_pt: (p.desc || {}).pt || '', desc_en: (p.desc || {}).en || '', ordem,
     produtores: offersRow(p.producers) || (p.farmer ? [{ farmer: p.farmer, organic: !!p.organic, outOfStock: !!p.outOfStock }] : []), aliases: p.aliases || [] });
   const PROD_PATCH = { price: v => ({ preco: +v }), season: v => ({ epoca_inicio: v[0], epoca_fim: v[1] }), split: v => ({ divisao: v || null }), outOfStock: v => ({ fora_stock: !!v }),
     name: v => ({ nome_pt: v.pt, nome_en: v.en }), desc: v => ({ desc_pt: v.pt, desc_en: v.en }), unit: v => ({ unidade: v }), farmer: v => ({ agricultor: v }), icon: v => ({ icone: v || null }),
     essential: v => ({ essencial: !!v }), organic: v => ({ biologico: !!v }), harvest: v => ({ colheita: v == null ? null : String(v) }), art: v => ({ desenho: v || null }), cat: v => ({ categoria: v }),
-    producers: v => ({ produtores: offersRow(v) || [] }), aliases: v => ({ aliases: v || [] }) };
+    producers: v => ({ produtores: offersRow(v) || [] }), photo: v => ({ foto: v || null }), aliases: v => ({ aliases: v || [] }) };
   const toFarmer = r => Object.assign({}, r.extra || {}, { id: r.id, name: r.nome, farm: r.quinta, place: r.localidade, region: r.regiao, lat: r.lat, lon: r.lon, since: r.desde,
     crop: r.cultura, seed: r.semente, story: { pt: r.historia_pt || '', en: r.historia_en || '' } }, BASE_IDS.f.has(r.id) ? {} : { isNew: true });
   const fromFarmer = (f, ordem) => ({ id: f.id, nome: f.name, quinta: f.farm, localidade: f.place || '', regiao: f.region || 'aveiro', lat: f.lat, lon: f.lon, desde: f.since || null,
@@ -96,8 +99,8 @@ const NUVEM = (() => {
     prato_pt: bi(r.dish, 'pt'), prato_en: bi(r.dish, 'en'), desde: r.since || null, pratos: r.dishes || [], ordem });
   const REST_PATCH = { name: v => ({ nome: v }), kind: v => ({ tipo_pt: bi(v, 'pt'), tipo_en: bi(v, 'en') }), area: v => ({ zona_pt: bi(v, 'pt'), zona_en: bi(v, 'en') }),
     dish: v => ({ prato_pt: bi(v, 'pt'), prato_en: bi(v, 'en') }), dishes: v => ({ pratos: v || [] }), since: v => ({ desde: v }), lat: v => ({ lat: v }), lon: v => ({ lon: v }) };
-  const toDay = r => ({ date: r.dia, farmer: r.agricultor, crop: r.cultura, what: { pt: r.produto_pt, en: r.produto_en }, time: r.horario, spots: r.lugares });
-  const fromDay = d => ({ dia: d.date, agricultor: d.farmer, cultura: d.crop || null, produto_pt: (d.what || {}).pt || '', produto_en: (d.what || {}).en || '', horario: d.time, lugares: +d.spots });
+  const toDay = r => ({ id: r.id || `${r.dia}-${r.agricultor}`, date: r.dia, farmer: r.agricultor, crop: r.cultura, what: { pt: r.produto_pt, en: r.produto_en }, time: r.horario, spots: r.lugares });
+  const fromDay = d => ({ id: d.id || `${d.date}-${d.farmer}`, dia: d.date, agricultor: d.farmer, cultura: d.crop || null, produto_pt: (d.what || {}).pt || '', produto_en: (d.what || {}).en || '', horario: d.time, lugares: +d.spots });
   const mapPatch = (o, map) => Object.entries(o).reduce((acc, [k, v]) => (map[k] ? Object.assign(acc, map[k](v)) : acc), {});
 
   const toSub = r => ({ id: r.id, box: r.caixa, size: r.tamanho, kg: +r.kg, freq: r.frequencia, day: r.dia, deliver: r.entrega, point: r.ponto, address: r.morada, discovery: !!r.descoberta,
@@ -108,7 +111,7 @@ const NUVEM = (() => {
     address: p.morada || null, favs: p.favoritos || [], exclude: p.excluidos || [], notify: p.avisos || [], partner: p.parceiro || null,
     subs: subs.map(toSub), harvests: harv.map(toHarv) });
   /* inscrição Colhe Connosco: pessoas, avaliação do cliente e registo da colheita feito pela gestão */
-  const toHarv = h => { const x = { date: h.dia, people: h.pessoas }; if (h.avaliacao) { x.rating = h.avaliacao; x.comment = h.comentario || ''; x.ratedAt = h.avaliado; } if (h.registo) x.record = h.registo; return x; };
+  const toHarv = h => { const x = { day: h.dia_id || null, date: h.dia, people: h.pessoas }; if (h.avaliacao) { x.rating = h.avaliacao; x.comment = h.comentario || ''; x.ratedAt = h.avaliado; } if (h.registo) x.record = h.registo; return x; };
   const harvRow = h => ({ pessoas: +h.people || 1, avaliacao: h.rating ? +h.rating : null, comentario: h.rating ? h.comment || '' : null, registo: h.record || null });
   const fromUser = u => ({ telemovel: u.phone || null, nome: u.name, email: u.email || null, morada: u.address || null, favoritos: u.favs || [], excluidos: u.exclude || [], avisos: u.notify || [],
     parceiro: u.partner || null, papel: u.role });
@@ -147,10 +150,10 @@ const NUVEM = (() => {
     fill(RESTAURANTS, rests.map(toRest));
     fill(HARVEST_DAYS, days.map(toDay));
     Object.keys(snap).filter(k => k.startsWith('d:')).forEach(k => delete snap[k]);
-    HARVEST_DAYS.forEach(d => { snap['d:' + d.date] = J(fromDay(d)); });
+    HARVEST_DAYS.forEach(d => { snap['d:' + d.id] = J(fromDay(d)); });
     boxes.forEach(r => { const list = BOX_SIZES[r.caixa]; if (!list) return; const z = list.find(x => x.s === r.tamanho); if (z) { z.price = +r.preco; z.kg = +r.kg; } else list.push({ s: r.tamanho, kg: +r.kg, price: +r.preco }); });
     PRODUCTS.filter(p => p.cat === 'caixas' && BOX_SIZES[p.id]).forEach(b => { b.price = Math.min(...BOX_SIZES[b.id].map(z => z.price)); });
-    ocup = Object.fromEntries(oc.map(x => [x.dia, +x.pessoas]));
+    ocup = {}; oc.forEach(x => { const k = x.dia_id || (HARVEST_DAYS.find(d => d.date === x.dia) || {}).id; if (k) ocup[k] = (ocup[k] || 0) + (+x.pessoas || 0); });
   }
   function guestOrders() { return store.get(GUEST_KEY, []).filter(x => x && x.num); }
   function rememberGuestOrder(o) { const list = guestOrders().filter(x => x.num !== o.num); list.unshift({ num: o.num, phone: o.phone }); store.set(GUEST_KEY, list.slice(0, 10)); }
@@ -170,10 +173,10 @@ const NUVEM = (() => {
     Object.values(USERS).forEach(u => {
       snap['u:' + u._id] = J(fromUser(u));
       u.subs.forEach(s => { snap['s:' + s.id] = J(fromSub(s, u._id)); });
-      u.harvests.forEach(h => { snap[`h:${u._id}|${h.date}`] = J(harvRow(h)); });
+      u.harvests.forEach(h => { snap[`h:${u._id}|${hKey(h)}`] = J(harvRow(h)); });
     });
     if (me) store.set(SESSION_KEY, me.username); else store.del(SESSION_KEY);
-    ownAtLoad = {}; if (me && USERS[me.username]) USERS[me.username].harvests.forEach(h => { ownAtLoad[h.date] = +h.people; });
+    ownAtLoad = {}; if (me && USERS[me.username]) USERS[me.username].harvests.forEach(h => { ownAtLoad[hKey(h)] = +h.people; });
     const orders = ords.map(toOrder), keepGuest = ORDERS.filter(o => o._tel && !orders.some(x => x.num === o.num));
     fill(ORDERS, orders.concat(keepGuest));
     ORDERS.forEach(o => { snap['o:' + o.num] = J(fromOrder(o)); });
@@ -181,7 +184,7 @@ const NUVEM = (() => {
     REQUESTS.forEach(r => { snap['r:' + r.id] = J(fromReq(r)); });
     await loadMsgs();
     N.farmerHarvest = null;
-    if (me && me.papel === 'agricultor') { try { N.farmerHarvest = Object.fromEntries((await rpc('colhe_resumo_agricultor', {}) || []).map(x => [x.dia, { people: +x.pessoas || 0, n: +x.n || 0, avg: +x.media || 0, kg: +x.kg || 0, comments: x.comentarios || [] }])); } catch (e) { console.warn(e); } }
+    if (me && me.papel === 'agricultor') { try { N.farmerHarvest = Object.fromEntries((await rpc('colhe_resumo_agricultor', {}) || []).map(x => [x.dia_id || (HARVEST_DAYS.find(d => d.date === x.dia) || {}).id, { people: +x.pessoas || 0, n: +x.n || 0, avg: +x.media || 0, kg: +x.kg || 0, comments: x.comentarios || [] }])); } catch (e) { console.warn(e); } }
   }
   /* mensagens ("Falar com a Daqui"): a gestão vê todas; cada conta vê as suas; sem conta, as da conversa guardada neste navegador */
   const toMsg = r => ({ id: r.id, conv: r.conversa, user: (Object.values(USERS).find(u => u._id === r.user_id) || {}).username || null, name: r.nome || '', contact: r.contacto || '', from: r.autor, text: r.texto, at: r.criada, read: !!r.lida });
@@ -231,13 +234,13 @@ const NUVEM = (() => {
       }
       const hs = u.harvests || [], pre = `h:${u._id}|`;
       for (const h of hs) {
-        const hk = pre + h.date, r = harvRow(h);
-        if (!snap[hk]) { await rest('POST', 'inscricoes_colhe', '', { user_id: u._id, dia: h.date, pessoas: r.pessoas }, 'return=minimal'); snap[hk] = J({ pessoas: r.pessoas, avaliacao: null, comentario: null, registo: null }); }
+        const key = hKey(h), hk = pre + key, r = harvRow(h), dd = HD(key);
+        if (!snap[hk]) { await rest('POST', 'inscricoes_colhe', '', { user_id: u._id, dia_id: key, dia: dd ? dd.date : h.date, pessoas: r.pessoas }, 'return=minimal'); snap[hk] = J({ pessoas: r.pessoas, avaliacao: null, comentario: null, registo: null }); }
         const d = diff(JSON.parse(snap[hk]), r);
-        if (d) { await rest('PATCH', 'inscricoes_colhe', `user_id=${eq(u._id)}&dia=${eq(h.date)}`, d, 'return=minimal'); snap[hk] = J(r); }
+        if (d) { await rest('PATCH', 'inscricoes_colhe', `user_id=${eq(u._id)}&dia_id=${eq(key)}`, d, 'return=minimal'); snap[hk] = J(r); }
       }
-      for (const hk of Object.keys(snap)) if (hk.startsWith(pre) && !hs.some(h => pre + h.date === hk)) {
-        await rest('DELETE', 'inscricoes_colhe', `user_id=${eq(u._id)}&dia=${eq(hk.slice(pre.length))}`, undefined, 'return=minimal'); delete snap[hk];
+      for (const hk of Object.keys(snap)) if (hk.startsWith(pre) && !hs.some(h => pre + hKey(h) === hk)) {
+        await rest('DELETE', 'inscricoes_colhe', `user_id=${eq(u._id)}&dia_id=${eq(hk.slice(pre.length))}`, undefined, 'return=minimal'); delete snap[hk];
       }
     }
   });
@@ -279,8 +282,8 @@ const NUVEM = (() => {
     for (const [id, o] of Object.entries(ch.products || {})) { const p = mapPatch(o, PROD_PATCH); if (Object.keys(p).length) await rest('PATCH', 'produtos', 'id=' + eq(id), p, 'return=minimal'); }
     for (const [box, sizes] of Object.entries(ch.boxes || {})) for (const [sz, price] of Object.entries(sizes)) await rest('PATCH', 'caixas_precos', `caixa=${eq(box)}&tamanho=${eq(sz)}`, { preco: +price }, 'return=minimal');
     if (Array.isArray(ch.harvestDays)) {
-      for (const d of ch.harvestDays) { const row = fromDay(d), k = 'd:' + d.date; if (snap[k] !== J(row)) { await rest('POST', 'dias_colhe', 'on_conflict=dia', row, up); snap[k] = J(row); } }
-      for (const k of Object.keys(snap)) if (k.startsWith('d:') && !ch.harvestDays.some(d => 'd:' + d.date === k)) { await rest('DELETE', 'dias_colhe', 'dia=' + eq(k.slice(2)), undefined, 'return=minimal'); delete snap[k]; }
+      for (const d of ch.harvestDays) { const row = fromDay(d), k = 'd:' + row.id; if (snap[k] !== J(row)) { await rest('POST', 'dias_colhe', 'on_conflict=id', row, up); snap[k] = J(row); } }
+      for (const k of Object.keys(snap)) if (k.startsWith('d:') && !ch.harvestDays.some(d => 'd:' + fromDay(d).id === k)) { await rest('DELETE', 'dias_colhe', 'id=' + eq(k.slice(2)), undefined, 'return=minimal'); delete snap[k]; }
     }
     for (const r of ch.newRestaurants || []) await rest('POST', 'restaurantes', 'on_conflict=id', fromRest(r, RESTAURANTS.length), up);
     for (const [id, o] of Object.entries(ch.restaurants || {})) { const p = mapPatch(o, REST_PATCH); if (Object.keys(p).length) await rest('PATCH', 'restaurantes', 'id=' + eq(id), p, 'return=minimal'); }
@@ -304,7 +307,7 @@ const NUVEM = (() => {
       img.src = url;
     });
   }
-  N.uploadPhoto = async (blob, ext = 'jpg') => {
+  N.uploadPhoto = async (blob, ext = 'jpg', bucket = 'incidencias') => {
     const small = await shrink(blob);
     if (small) { blob = small; ext = 'jpg'; }
     if (!/^(jpe?g|png|webp)$/i.test(ext)) ext = 'jpg';
@@ -312,9 +315,9 @@ const NUVEM = (() => {
     const name = `${new Date().toISOString().slice(0, 7)}/${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}.${ext}`;
     const h = { apikey: KEY, 'Content-Type': blob.type || 'image/jpeg', 'x-upsert': 'false' };
     if (sess) h.Authorization = 'Bearer ' + sess.access_token; else if (/^eyJ/.test(KEY)) h.Authorization = 'Bearer ' + KEY;
-    const r = await fetch(`${BASE}/storage/v1/object/incidencias/${name}`, { method: 'POST', headers: h, body: blob });
+    const r = await fetch(`${BASE}/storage/v1/object/${bucket}/${name}`, { method: 'POST', headers: h, body: blob });
     if (!r.ok) throw new Error('Storage ' + r.status + ' ' + (await r.text()).slice(0, 120));
-    return `${BASE}/storage/v1/object/public/incidencias/${name}`;
+    return `${BASE}/storage/v1/object/public/${bucket}/${name}`;
   };
   /* telemóveis que recebem notificações (app Android) */
   N.registerDevice = (token, platform) => (sess ? rpc('registar_dispositivo', { p_token: token, p_plataforma: platform || 'android', p_lingua: lang }) : Promise.resolve());
@@ -330,10 +333,12 @@ const NUVEM = (() => {
   N.markRead = conv => queue(() => rpc('marcar_lidas', { p_conversa: conv }), true);
   /* agricultor: stock da sua parte de um produto (pode haver vários produtores) */
   N.setStock = (id, out) => queue(() => rpc('definir_stock', { p_produto: id, p_fora: !!out })).then(() => reloadSoon(true, false));
+  /* agricultor: deixar de vender um produto (sai da lista de produtores; sem produtores, o produto fica sem stock) */
+  N.leaveProduct = id => queue(() => rpc('deixar_produto', { p_produto: id })).then(() => reloadSoon(true, false));
   /* agricultor (ou gestão): editar um dia Colhe Connosco antes de começar; as inscrições mudam com ele */
-  N.editHarvestDay = (old, d) => {
-    delete snap['d:' + old]; snap['d:' + d.date] = J(fromDay(d));
-    return queue(() => rpc('editar_dia_colhe', { p_dia: old, p_novo_dia: d.date, p_horario: d.time, p_lugares: +d.spots, p_produto_pt: (d.what || {}).pt || '', p_produto_en: (d.what || {}).en || '', p_cultura: d.crop || null })).then(() => reloadSoon(true, true));
+  N.editHarvestDay = (id, d) => {
+    snap['d:' + id] = J(fromDay(d));
+    return queue(() => rpc('editar_dia_colhe', { p_id: id, p_novo_dia: d.date, p_horario: d.time, p_lugares: +d.spots, p_produto_pt: (d.what || {}).pt || '', p_produto_en: (d.what || {}).en || '', p_cultura: d.crop || null })).then(() => reloadSoon(true, true));
   };
   /* gestão: juntar produtos repetidos (produtores, favoritos, avisos e o endereço antigo passam para o que fica) */
   N.mergeProducts = (keep, drop) => queue(() => rpc('juntar_produtos', { p_manter: keep, p_juntar: drop })).then(() => reloadSoon(true, true));
@@ -466,7 +471,7 @@ const NUVEM = (() => {
 
   /* ---------- usado pelo resto do site ---------- */
   N.isAdmin = isAdmin;
-  N.harvestPeople = date => { const own = me && USERS[me.username] ? (USERS[me.username].harvests || []).filter(h => h.date === date).reduce((a, h) => a + (+h.people || 1), 0) : 0; return Math.max(0, (ocup[date] || 0) - (ownAtLoad[date] || 0) + own); };
+  N.harvestPeople = id => { const own = me && USERS[me.username] ? (USERS[me.username].harvests || []).filter(h => hKey(h) === id).reduce((a, h) => a + (+h.people || 1), 0) : 0; return Math.max(0, (ocup[id] || 0) - (ownAtLoad[id] || 0) + own); };
   N.newOrderNumber = () => { let n; do { n = 'DQ' + (100000 + Math.floor(Math.random() * 900000)); } while (ORDERS.some(o => o.num === n)); return n; };
   N.newRequestId = () => 'P-' + (Date.now().toString(36) + Math.floor(Math.random() * 36).toString(36)).toUpperCase().slice(-7);
   N.lookupOrder = (num, phone) => lookupOrder(num, phone);
