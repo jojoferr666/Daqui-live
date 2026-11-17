@@ -134,9 +134,45 @@ PAGES['colhe-connosco'] = () => {
     <div class="sec-head"><div><h2>${T('Próximos dias', 'Upcoming days')}</h2><p class="lead">${T('Os dias dependem do tempo. Se houver alteração, avisamos por mensagem.', 'Days depend on the weather. If anything changes, we\'ll text you.')}</p></div>
       ${currentUser() ? `<a class="btn btn-line c-campo" href="${href('conta')}">${T('As minhas inscrições', 'My sign-ups')}</a>` : ''}</div>
     <div class="days" id="days">${upcoming.length ? upcoming.map(dayCard).join('') : `<p class="muted">${T('Ainda não há dias marcados. Volte em breve.', 'No days scheduled yet. Check back soon.')}</p>`}</div>
-  </div></section>`;
+  </div></section>
+  ${pastHarvestsSection()}`;
   return { title: JTH(), html };
 };
+/* dias que já passaram, no fundo da página: avaliação média, comentários e respostas da Daqui (a gestão pode responder aqui) */
+let pastShown = 4;
+function pastHarvestsSection() {
+  const past = HARVEST_DAYS.filter(harvestPast).sort((a, b) => b.date.localeCompare(a.date));
+  if (!past.length) return '';
+  return `<section class="sec sec-sage" id="dias-passados"><div class="wrap">
+    <div class="sec-head"><div><h2>${T('Dias passados', 'Past days')}</h2><p class="lead">${T('O que disseram os participantes de cada dia Colhe Connosco.', 'What participants said about each Join the Harvest day.')}</p></div></div>
+    <div class="past-days">${past.slice(0, pastShown).map(pastDayCard).join('')}</div>
+    ${past.length > pastShown ? `<p class="mt"><button class="btn btn-line c-campo" data-past-more>${T('Ver mais dias passados', 'See more past days')} (${past.length - pastShown})</button></p>` : ''}
+  </div></section>`;
+}
+function reviewItem(d, r, admin) {
+  return `<li class="review"><div class="review-h">${stars(r.rating)}<b>${esc(r.name || T('Participante', 'Participant'))}</b></div>
+    ${r.comment ? `<p class="review-t">«${esc(r.comment)}»</p>` : ''}
+    ${r.reply ? `<p class="review-reply">${icon('chat', 16)}<span><b>${T('Resposta da Daqui', 'Reply from Daqui')}:</b> ${esc(r.reply)}</span></p>` : ''}
+    ${admin && r.user ? `<form class="reply-form" data-colhe-reply="${d.id}|${esc(r.user)}"><label class="sr" for="cr-${esc(d.id)}-${esc(r.user)}">${T('Resposta a', 'Reply to')} ${esc(r.name)}</label><textarea id="cr-${esc(d.id)}-${esc(r.user)}" rows="2" placeholder="${T('Responder a este comentário…', 'Reply to this comment…')}">${esc(r.reply || '')}</textarea><button class="btn btn-line btn-sm c-campo" type="submit">${r.reply ? T('Atualizar resposta', 'Update reply') : T('Responder', 'Reply')}</button></form>` : ''}</li>`;
+}
+function pastDayCard(d) {
+  const f = F(d.farmer) || { farm: d.farmer, place: '' }, rv = harvestReviews(d.id), n = rv.length, avg = n ? rv.reduce((a, r) => a + r.rating, 0) / n : 0;
+  const admin = !!(currentUser() && currentUser().role === 'admin');
+  return `<article class="past-day"><div class="past-day-h"><div class="date"><b>${fdate(d.date, { day: 'numeric' })}</b><span>${fdate(d.date, { month: 'short' })}</span><span class="y">${d.date.slice(0, 4)}</span></div>
+      <div><h3>${esc(L(d.what))}</h3><p class="small muted">${esc(f.farm)}${f.place ? ', ' + esc(f.place) : ''} · ${d.time}</p>
+        <p class="past-avg">${n ? `${stars(Math.round(avg))} <b>${numFmt(round2(avg))}</b> <span class="small muted">(${n} ${n === 1 ? T('avaliação', 'review') : T('avaliações', 'reviews')})</span>` : `<span class="small muted">${T('Ainda sem avaliações.', 'No reviews yet.')}</span>`}</p></div></div>
+    ${rv.some(r => r.comment || r.reply || admin) ? `<ul class="reviews">${rv.filter(r => r.comment || r.reply || admin).map(r => reviewItem(d, r, admin)).join('')}</ul>` : ''}</article>`;
+}
+PAGE_EVENTS.click.push((e, t, d) => { if ('pastMore' in d) { pastShown += 6; const y = scrollY; render(); scrollTo(0, y); return true; } });
+/* gestão: responder a um comentário de um dia passado (aqui e no separador Colhe Connosco da gestão) */
+PAGE_EVENTS.submit.push((e, f) => {
+  if (!f.matches('[data-colhe-reply]')) return; e.preventDefault();
+  const me = currentUser(); if (!me || me.role !== 'admin') return true;
+  const [id, un] = f.dataset.colheReply.split('|'), dd = HD(id), u = USERS[un], h = u && dd && (u.harvests || []).find(x => hIs(x, dd)); if (!h) return true;
+  const text = $('textarea', f).value.trim().slice(0, 600);
+  if (text) h.reply = { text, at: nowISO() }; else delete h.reply;
+  saveUsers(); toast(text ? T('Resposta publicada', 'Reply published') : T('Resposta apagada', 'Reply removed')); rerenderKeep(); return true;
+});
 function refreshDays() { const el = $('#days'); if (el) el.innerHTML = HARVEST_DAYS.filter(h => !harvestPast(h)).map(dayCard).join(''); else { const y = scrollY; render(); scrollTo(0, y); } }
 PAGE_EVENTS.click.push((e, t, d) => {
   if (d.harvest) {

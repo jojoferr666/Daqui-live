@@ -279,9 +279,13 @@ PAGE_EVENTS.click.push((e, t, d) => {
 
 /* ---------------- SUBSCRIÇÃO ---------------- */
 const planState = { 'caixa-mista': { size: 'P', freq: 'sem' }, 'caixa-essencial': { size: 'P', freq: 'sem' }, 'caixa-fruta': { size: 'M', freq: 'quinz' }, 'caixa-legumes': { size: 'M', freq: 'sem' } };
+/* todas as caixas com preços (as 4 da Daqui e as criadas na gestão) */
+const allBoxes = () => PRODUCTS.filter(p => p.cat === 'caixas' && BOX_SIZES[p.id] && BOX_SIZES[p.id].length);
+const planOf = id => planState[id] || (planState[id] = { size: BOX_SIZES[id][0].s, freq: 'sem' });
 function planCard(id) {
-  const p = P(id), st = planState[id], sz = BOX_SIZES[id].find(s => s.s === st.size);
-  const ticks = { 'caixa-mista': [T('Pelo menos 6 variedades da época', 'At least 6 seasonal varieties'), T('Uma Descoberta da Estação com receita', 'One Seasonal Discovery with a recipe')], 'caixa-essencial': [T('Os 8 produtos essenciais da semana', 'The 8 weekly essentials'), T('Sempre os mesmos, para quem gosta de rotina', 'Always the same, for people who like routine')], 'caixa-fruta': [T('Pelo menos 4 frutas da época', 'At least 4 seasonal fruits'), T('Fruta pronta a comer na semana', 'Fruit ready to eat that week')], 'caixa-legumes': [T('Pelo menos 4 legumes da época', 'At least 4 seasonal vegetables'), T('Ideal para sopas e acompanhamentos', 'Great for soups and side dishes')] }[id];
+  const p = P(id), st = planOf(id), sz = BOX_SIZES[id].find(s => s.s === st.size) || BOX_SIZES[id][0];
+  const ticks = { 'caixa-mista': [T('Pelo menos 6 variedades da época', 'At least 6 seasonal varieties'), T('Uma Descoberta da Estação com receita', 'One Seasonal Discovery with a recipe')], 'caixa-essencial': [T('Os 8 produtos essenciais da semana', 'The 8 weekly essentials'), T('Sempre os mesmos, para quem gosta de rotina', 'Always the same, for people who like routine')], 'caixa-fruta': [T('Pelo menos 4 frutas da época', 'At least 4 seasonal fruits'), T('Fruta pronta a comer na semana', 'Fruit ready to eat that week')], 'caixa-legumes': [T('Pelo menos 4 legumes da época', 'At least 4 seasonal vegetables'), T('Ideal para sopas e acompanhamentos', 'Great for soups and side dishes')] }[id]
+    || [T(`${boxProducts(p).length} produtos da época à escolha`, `${boxProducts(p).length} seasonal products to choose from`), L(p.desc) || T('Uma caixa criada pela equipa Daqui', 'A box put together by the Daqui team')];
   return `<article class="plan" data-plan="${id}">
     <a class="pimg box" href="${productHref(p)}" tabindex="-1" aria-hidden="true">${artFor(p)}</a>
     <div class="pb"><h3>${esc(L(p.name))}</h3>
@@ -303,7 +307,7 @@ PAGES.subscricao = () => {
   </section>
   <section class="sec sec-sage"><div class="wrap">
     <div class="sec-head"><div><h2>${T('Escolha a sua caixa', 'Choose your box')}</h2><p class="lead">${T('No passo seguinte escolhe o dia, o local de entrega e o que não quer receber.', 'In the next step you choose the day, where to receive it and anything you\'d rather not get.')}</p></div></div>
-    <div class="plans" id="plans">${Object.keys(planState).map(planCard).join('')}</div>
+    <div class="plans" id="plans">${allBoxes().map(b => planCard(b.id)).join('')}</div>
   </div></section>
   <section class="sec"><div class="wrap">
     <div class="two"><div><h2>${T('Preço garantido durante 12 meses', 'Price guaranteed for 12 months')}</h2>
@@ -362,7 +366,8 @@ function subSummary() {
 }
 PAGES.subscrever = () => {
   const p = P(PID);
-  if (!p || !BOX_SIZES[PID]) return { title: T('Caixa não encontrada', 'Box not found'), html: `<div class="wrap page-head"><h1>${T('Caixa não encontrada', 'Box not found')}</h1><a class="btn btn-green mt" href="${href('subscricao')}">${T('Ver caixas', 'See boxes')}</a></div>` };
+  if (p && BOX_SIZES[PID] && BOX_SIZES[PID].length && !BOX_SIZES[PID].some(s => s.s === cfg.size)) cfg = makeCfg();   // caixas da base de dados: os tamanhos só chegam depois de carregar
+  if (!p || !BOX_SIZES[PID] || !BOX_SIZES[PID].length) return { title: T('Caixa não encontrada', 'Box not found'), html: `<div class="wrap page-head"><h1>${T('Caixa não encontrada', 'Box not found')}</h1><a class="btn btn-green mt" href="${href('subscricao')}">${T('Ver caixas', 'See boxes')}</a></div>` };
   const u = currentUser();
   if (u && u.address && !cfg.address && !cfg.addrTouched) { cfg.address = u.address.street; cfg.postal = u.address.postal; cfg.town = u.address.town; }
   const html = `${crumbs([[T('Subscrição', 'Subscription'), 'subscricao'], [L(p.name), '']])}
@@ -425,6 +430,7 @@ PAGE_EVENTS.input.push((e, t) => { if (PAGE === 'subscrever' && t.dataset.cfgFie
 
 /* ---------------- abas da página de produto ---------------- */
 function boxProducts(p) {
+  if (p.items) return PRODUCTS.filter(x => p.items.includes(x.id) && inSeason(x)).sort((a, b) => relRank(a) - relRank(b));
   if (p.id === 'caixa-essencial') return PRODUCTS.filter(x => x.essential);
   const cats = { 'caixa-fruta': ['fruta'], 'caixa-legumes': ['legumes'] }[p.id] || ['fruta', 'legumes'];
   return PRODUCTS.filter(x => cats.includes(x.cat) && inSeason(x)).sort((a, b) => relRank(a) - relRank(b));

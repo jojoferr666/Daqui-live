@@ -79,6 +79,7 @@ No menu da esquerda, **SQL Editor** → *New query*. Para cada ficheiro da pasta
 | `supabase/04-app.sql` | Para a app: telemóveis que recebem notificações, fotografias das incidências (Storage, pasta `incidencias`) e "deslizar para confirmar" o levantamento. Corra também se só usar o site: as fotografias das incidências do site usam-no. |
 | `supabase/06-melhorias.sql` | Versão 7: vários produtores por produto e escolha convencional/biológico, aprovar ou rejeitar pedidos com mensagem, edição e avaliações do Colhe Connosco, registo da colheita e "Falar com a Daqui". Corra-o **antes** de enviar a versão 7 do site. Pode ser corrido mais do que uma vez. |
 | `supabase/07-colhe-e-produtos.sql` | Versão 9: vários dias Colhe Connosco na mesma data (cada dia tem um id), avaliação só uma vez, registo da colheita com valor pago, "Deixar de vender" e fotografias de produtos novos. Corra-o **antes** de enviar a versão 9 do site, depois do 06. Depois do 07, não volte a correr o 06. |
+| `supabase/08-avaliacoes-e-caixas.sql` | Versão 10: respostas da gestão aos comentários do Colhe Connosco, lista pública das avaliações dos dias passados e tabela `caixas` (caixas novas criadas na gestão). Corra-o **antes** de enviar a versão 10 do site, depois do 07. |
 | `supabase/05-notificacoes.sql` | Só para as notificações da app Android, **depois** de criar a função `notificar` (ver `LEIA-ME-APP.md` do projeto `daqui-android`). Antes de correr, troque as 2 linhas marcadas com `<<<`. |
 
 Para confirmar: **Table Editor** → tabela `perfis` deve ter 27 linhas e `produtos` 94.
@@ -233,7 +234,7 @@ js/                         ver tabela abaixo
 ferramentas/                scripts para gerar páginas, ícones, análises e o SQL da base de dados
 app/index.html              a app para telemóvel (secção 23); app/manifest.webmanifest, app/sw.js, app/icones/
 css/app.css                 estilos só da app (tudo começa por body.app)
-supabase/                   01-estrutura.sql … 07-colhe-e-produtos.sql (secção 2)
+supabase/                   01-estrutura.sql … 08-avaliacoes-e-caixas.sql (secção 2)
 supabase/funcoes/notificar/index.ts   função do Supabase que envia as notificações (Firebase)
 LEIA-ME.md                  este ficheiro
 ```
@@ -613,3 +614,18 @@ Base de dados: corra `supabase/07-colhe-e-produtos.sql` (depois do 06; pode repe
 | Produto novo | O agricultor escolhe o desenho ou carrega uma fotografia (vai para a pasta "produtos" do Storage). |
 | Início da app | Desliza-se entre a próxima entrega e todas as subscrições, também as que estão em pausa. |
 | A minha conta (site) | Separadores com ícone, texto centrado e o mesmo estilo dos botões. |
+
+
+## 27. Versão 10: o que mudou
+
+Base de dados: corra `supabase/08-avaliacoes-e-caixas.sql` (depois do 07; pode repetir).
+
+| Ponto | O que mudou |
+| --- | --- |
+| Colhe Connosco | No fundo da página (site e app) aparecem os dias passados, com a avaliação média e os comentários (só o primeiro nome). A gestão responde a cada comentário nessa página ou no separador Colhe Connosco; o participante vê a resposta e recebe um aviso. |
+| App: área do agricultor | "Marcar fora de stock" e "Deixar de vender" ficam lado a lado, numa linha própria. |
+| App: catálogo da gestão | Cada produto num cartão que cabe no ecrã (o texto longo dos produtores já não empurra a página para o lado). |
+| Caixas novas | Gestão → Caixas → "Criar uma caixa nova": nome, descrição, preço por tamanho e os produtos que a caixa pode levar (ex.: frutos secos, aromáticas, fruta exótica). Aparece na loja, nas subscrições e na app. Sem subscritores, pode ser apagada. |
+| Ícones | Todos os `.svg` da pasta `img/produtos` aparecem para escolher (produto novo, proposta do agricultor e "Mudar a imagem" no catálogo, ao carregar no ícone). No site publicado, a lista vem do GitHub; na app, o `npm run atualizar` cria-a; também pode correr `node ferramentas/listar-icones.js`. |
+| Regiões | Novas regiões: Minho, Porto e Douro, Região de Coimbra, Região de Leiria, Lisboa e Setúbal e Açores (com o seu quadro no mapa de Portugal). |
+| Mapa de Aveiro | Os restaurantes e o ponto de recolha aparecem sobre um mapa real (OpenStreetMap, estilo CARTO). Sem internet, aparece o desenho antigo. |

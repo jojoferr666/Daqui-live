@@ -1,0 +1,398 @@
+[
+ {
+  "f": "_novo",
+  "n": ""
+ },
+ {
+  "f": "abacate",
+  "n": "Abacate do Algarve"
+ },
+ {
+  "f": "abobora-manteiga",
+  "n": "Abóbora-manteiga"
+ },
+ {
+  "f": "abobora",
+  "n": "Abóbora-menina"
+ },
+ {
+  "f": "acelga",
+  "n": "Acelga"
+ },
+ {
+  "f": "agriao",
+  "n": "Agrião"
+ },
+ {
+  "f": "aipo",
+  "n": "Aipo"
+ },
+ {
+  "f": "alface-iceberg",
+  "n": "Alface iceberg"
+ },
+ {
+  "f": "alface-romana",
+  "n": "Alface romana"
+ },
+ {
+  "f": "alface",
+  "n": "Alface frisada"
+ },
+ {
+  "f": "alho-frances",
+  "n": "Alho-francês"
+ },
+ {
+  "f": "alho",
+  "n": "Alho"
+ },
+ {
+  "f": "alperce",
+  "n": "Alperce"
+ },
+ {
+  "f": "ameixa-rainha-claudia",
+  "n": "Ameixa Rainha-Cláudia"
+ },
+ {
+  "f": "ameixa",
+  "n": "Ameixa"
+ },
+ {
+  "f": "amora",
+  "n": "Amora"
+ },
+ {
+  "f": "anona",
+  "n": "Anona da Madeira"
+ },
+ {
+  "f": "banana-madeira",
+  "n": "Banana da Madeira"
+ },
+ {
+  "f": "batata-doce",
+  "n": "Batata-doce"
+ },
+ {
+  "f": "batata-vermelha",
+  "n": "Batata vermelha"
+ },
+ {
+  "f": "batata",
+  "n": "Batata da Gândara"
+ },
+ {
+  "f": "beringela",
+  "n": "Beringela"
+ },
+ {
+  "f": "beterraba",
+  "n": "Beterraba"
+ },
+ {
+  "f": "brocolos",
+  "n": "Brócolos"
+ },
+ {
+  "f": "caixa-essencial",
+  "n": "Caixa Essencial"
+ },
+ {
+  "f": "caixa-fruta",
+  "n": "Caixa de Fruta da Estação"
+ },
+ {
+  "f": "caixa-legumes",
+  "n": "Caixa de Legumes da Estação"
+ },
+ {
+  "f": "caixa-mista",
+  "n": "Caixa Mista da Estação"
+ },
+ {
+  "f": "castanha",
+  "n": "Castanha de Trás-os-Montes"
+ },
+ {
+  "f": "cebola-roxa",
+  "n": "Cebola roxa"
+ },
+ {
+  "f": "cebola",
+  "n": "Cebola"
+ },
+ {
+  "f": "cenoura",
+  "n": "Cenoura"
+ },
+ {
+  "f": "cereja",
+  "n": "Cereja do Fundão"
+ },
+ {
+  "f": "chuchu",
+  "n": "Chuchu"
+ },
+ {
+  "f": "clementina",
+  "n": "Clementina"
+ },
+ {
+  "f": "coentros",
+  "n": "Coentros"
+ },
+ {
+  "f": "courgette",
+  "n": "Courgette"
+ },
+ {
+  "f": "couve-coracao",
+  "n": "Couve-coração"
+ },
+ {
+  "f": "couve-de-bruxelas",
+  "n": "Couve-de-bruxelas"
+ },
+ {
+  "f": "couve-flor",
+  "n": "Couve-flor"
+ },
+ {
+  "f": "couve-galega",
+  "n": "Couve-galega"
+ },
+ {
+  "f": "couve-lombarda",
+  "n": "Couve-lombarda"
+ },
+ {
+  "f": "couve-portuguesa",
+  "n": "Couve-portuguesa"
+ },
+ {
+  "f": "couve-roxa",
+  "n": "Couve-roxa"
+ },
+ {
+  "f": "diospiro",
+  "n": "Dióspiro"
+ },
+ {
+  "f": "ervilhas",
+  "n": "Ervilhas"
+ },
+ {
+  "f": "espargos",
+  "n": "Espargos verdes"
+ },
+ {
+  "f": "espinafres",
+  "n": "Espinafres"
+ },
+ {
+  "f": "favas",
+  "n": "Favas"
+ },
+ {
+  "f": "feijao-verde",
+  "n": "Feijão-verde"
+ },
+ {
+  "f": "figo",
+  "n": "Figo"
+ },
+ {
+  "f": "framboesa",
+  "n": "Framboesa"
+ },
+ {
+  "f": "funcho",
+  "n": "Funcho"
+ },
+ {
+  "f": "grelos",
+  "n": "Grelos"
+ },
+ {
+  "f": "hortela",
+  "n": "Hortelã"
+ },
+ {
+  "f": "kiwi",
+  "n": "Kiwi"
+ },
+ {
+  "f": "laranja",
+  "n": "Laranja do Algarve"
+ },
+ {
+  "f": "lima",
+  "n": "Lima"
+ },
+ {
+  "f": "limao",
+  "n": "Limão"
+ },
+ {
+  "f": "maca-bravo-esmolfe",
+  "n": "Maçã Bravo de Esmolfe DOP"
+ },
+ {
+  "f": "maca-fuji",
+  "n": "Maçã Fuji"
+ },
+ {
+  "f": "maca-gala",
+  "n": "Maçã Gala de Alcobaça"
+ },
+ {
+  "f": "maca-golden",
+  "n": "Maçã Golden"
+ },
+ {
+  "f": "maca-reineta",
+  "n": "Maçã Reineta"
+ },
+ {
+  "f": "malagueta",
+  "n": "Malagueta"
+ },
+ {
+  "f": "manjericao",
+  "n": "Manjericão"
+ },
+ {
+  "f": "maracuja",
+  "n": "Maracujá"
+ },
+ {
+  "f": "marmelo",
+  "n": "Marmelo"
+ },
+ {
+  "f": "medronho",
+  "n": "Medronho"
+ },
+ {
+  "f": "melancia",
+  "n": "Melancia"
+ },
+ {
+  "f": "melao",
+  "n": "Melão"
+ },
+ {
+  "f": "meloa",
+  "n": "Meloa"
+ },
+ {
+  "f": "milho-doce",
+  "n": "Milho doce"
+ },
+ {
+  "f": "mirtilo",
+  "n": "Mirtilo"
+ },
+ {
+  "f": "morango",
+  "n": "Morango"
+ },
+ {
+  "f": "nabicas",
+  "n": "Nabiças"
+ },
+ {
+  "f": "nabo",
+  "n": "Nabo"
+ },
+ {
+  "f": "nectarina",
+  "n": "Nectarina"
+ },
+ {
+  "f": "nespera",
+  "n": "Nêspera"
+ },
+ {
+  "f": "noz",
+  "n": "Noz"
+ },
+ {
+  "f": "pepino",
+  "n": "Pepino"
+ },
+ {
+  "f": "pera-rocha",
+  "n": "Pera Rocha do Oeste"
+ },
+ {
+  "f": "pessego",
+  "n": "Pêssego"
+ },
+ {
+  "f": "physalis",
+  "n": "Physalis"
+ },
+ {
+  "f": "pimento-amarelo",
+  "n": "Pimento amarelo"
+ },
+ {
+  "f": "pimento-verde",
+  "n": "Pimento verde"
+ },
+ {
+  "f": "pimento-vermelho",
+  "n": "Pimento vermelho"
+ },
+ {
+  "f": "rabanete",
+  "n": "Rabanete"
+ },
+ {
+  "f": "roma",
+  "n": "Romã"
+ },
+ {
+  "f": "rucula",
+  "n": "Rúcula"
+ },
+ {
+  "f": "salsa",
+  "n": "Salsa"
+ },
+ {
+  "f": "tangerina",
+  "n": "Tangerina"
+ },
+ {
+  "f": "tomate-cherry",
+  "n": "Tomate cherry"
+ },
+ {
+  "f": "tomate-chucha",
+  "n": "Tomate chucha"
+ },
+ {
+  "f": "tomate",
+  "n": "Tomate coração-de-boi"
+ },
+ {
+  "f": "toranja",
+  "n": "Toranja"
+ },
+ {
+  "f": "uva-branca",
+  "n": "Uva de mesa branca"
+ },
+ {
+  "f": "uva-moscatel",
+  "n": "Uva moscatel"
+ },
+ {
+  "f": "uva-tinta",
+  "n": "Uva de mesa tinta"
+ }
+]

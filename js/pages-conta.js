@@ -120,7 +120,7 @@ PAGES.conta = () => {
   /* Colhe Connosco: inscrições, avaliação (abre no início do dia e fecha 48 h depois do fim) e registo da colheita feito pela equipa */
   const harvRow = h => { const dd = hDay(h); if (!dd) return ''; const f = F(dd.farmer) || { farm: dd.farmer, place: '' }, started = harvestStarted(dd), open = harvestRateOpen(dd), rec = h.record, k = dd.id.replace(/[^a-zA-Z0-9-]/g, '_');
     /* a avaliação só se envia uma vez: depois fica como está */
-    const rate = !started ? '' : h.rating ? `<p class="small mt-s">${T('A sua avaliação', 'Your review')}: ${stars(+h.rating)}${h.comment ? ` «${esc(h.comment)}»` : ''}</p>`
+    const rate = !started ? '' : h.rating ? `<p class="small mt-s">${T('A sua avaliação', 'Your review')}: ${stars(+h.rating)}${h.comment ? ` «${esc(h.comment)}»` : ''}</p>${h.reply ? `<p class="review-reply small">${icon('chat', 16)}<span><b>${T('Resposta da Daqui', 'Reply from Daqui')}:</b> ${esc(h.reply.text)}</span></p>` : ''}`
       : open ? `<form class="rate-form mt-s" data-rate-form="${dd.id}"><fieldset class="plain"><legend class="small"><b>${T('Como correu? Avalie até', 'How did it go? Review it until')} ${fdate(harvestWindow(dd).close, { weekday: 'long', hour: '2-digit', minute: '2-digit' })}</b></legend>
         <div class="star-pick">${[5, 4, 3, 2, 1].map(n => `<input type="radio" id="rt-${k}-${n}" name="rt-${k}" value="${n}"><label for="rt-${k}-${n}" title="${n}">★<span class="sr">${n} ${T('estrelas', 'stars')}</span></label>`).join('')}</div></fieldset>
         <label class="sr" for="rc-${k}">${T('Comentário', 'Comment')}</label><textarea id="rc-${k}" rows="2" placeholder="${T('Conte como foi (opcional)', 'Tell us how it went (optional)')}"></textarea>

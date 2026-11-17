@@ -17,8 +17,8 @@ const NUVEM = (() => {
   const KEY = (typeof SUPABASE_KEY === 'string' ? SUPABASE_KEY : '').trim();
   const POLL = Math.max(5, +(typeof SUPABASE_ATUALIZAR_SEGUNDOS !== 'undefined' ? SUPABASE_ATUALIZAR_SEGUNDOS : 30) || 30) * 1000;
   const SESS_KEY = 'daqui-nuvem-sessao', GUEST_KEY = 'daqui-encomendas-visitante';
-  const TABLES = ['produtos', 'agricultores', 'restaurantes', 'dias_colhe', 'caixas_precos', 'perfis', 'subscricoes', 'inscricoes_colhe', 'encomendas', 'pedidos', 'mensagens'];
-  const CATALOG_TABLES = TABLES.slice(0, 5);
+  const TABLES = ['caixas', 'produtos', 'agricultores', 'restaurantes', 'dias_colhe', 'caixas_precos', 'perfis', 'subscricoes', 'inscricoes_colhe', 'encomendas', 'pedidos', 'mensagens'];
+  const CATALOG_TABLES = TABLES.slice(0, 6);
   const N = { on: false, configured: /^https?:\/\//.test(BASE) && KEY.length > 20, live: false, error: '', failed: false };
   let sess = null, me = null, ocup = {}, ownAtLoad = {}, snap = {}, chain = Promise.resolve();
 
@@ -111,8 +111,8 @@ const NUVEM = (() => {
     address: p.morada || null, favs: p.favoritos || [], exclude: p.excluidos || [], notify: p.avisos || [], partner: p.parceiro || null,
     subs: subs.map(toSub), harvests: harv.map(toHarv) });
   /* inscrição Colhe Connosco: pessoas, avaliação do cliente e registo da colheita feito pela gestão */
-  const toHarv = h => { const x = { day: h.dia_id || null, date: h.dia, people: h.pessoas }; if (h.avaliacao) { x.rating = h.avaliacao; x.comment = h.comentario || ''; x.ratedAt = h.avaliado; } if (h.registo) x.record = h.registo; return x; };
-  const harvRow = h => ({ pessoas: +h.people || 1, avaliacao: h.rating ? +h.rating : null, comentario: h.rating ? h.comment || '' : null, registo: h.record || null });
+  const toHarv = h => { const x = { day: h.dia_id || null, date: h.dia, people: h.pessoas }; if (h.avaliacao) { x.rating = h.avaliacao; x.comment = h.comentario || ''; x.ratedAt = h.avaliado; } if (h.registo) x.record = h.registo; if (h.resposta) x.reply = { text: h.resposta, at: h.respondido }; return x; };
+  const harvRow = h => ({ pessoas: +h.people || 1, avaliacao: h.rating ? +h.rating : null, comentario: h.rating ? h.comment || '' : null, registo: h.record || null, resposta: h.reply && h.reply.text ? h.reply.text : null });
   const fromUser = u => ({ telemovel: u.phone || null, nome: u.name, email: u.email || null, morada: u.address || null, favoritos: u.favs || [], excluidos: u.exclude || [], avisos: u.notify || [],
     parceiro: u.partner || null, papel: u.role });
   const uidOf = un => (un && USERS[un] ? USERS[un]._id : null);
@@ -145,14 +145,18 @@ const NUVEM = (() => {
       rest('GET', 'restaurantes', 'select=*&order=ordem.asc,id.asc'), rest('GET', 'dias_colhe', 'select=*&order=dia.asc'),
       rest('GET', 'caixas_precos', 'select=*&order=caixa.asc,ordem.asc'), rest('GET', 'colhe_ocupacao', 'select=*')]);
     if (!prods.length) { N.error = 'catalogo-vazio'; return; }
+    /* caixas criadas na gestão (tabela "caixas", supabase/08); sem a tabela, ficam só as 4 caixas da Daqui */
+    const custom = await rest('GET', 'caixas', 'select=*&order=ordem.asc,criada.asc').catch(() => []);
+    PRODUCTS.filter(p => p.custom).forEach(p => { delete BOX_SIZES[p.id]; });
+    custom.forEach(r => { BOX_SIZES[r.id] = []; });
     fill(FARMERS, farms.map(toFarmer));
-    fill(PRODUCTS, PRODUCTS.filter(p => p.cat === 'caixas').concat(prods.map(toProd)));
+    fill(PRODUCTS, PRODUCTS.filter(p => p.cat === 'caixas' && !p.custom).concat(custom.map(r => boxProduct({ id: r.id, name: { pt: r.nome_pt, en: r.nome_en }, desc: { pt: r.desc_pt, en: r.desc_en }, items: r.produtos || [], icon: r.icone || '', sizes: [] })), prods.map(toProd)));
     fill(RESTAURANTS, rests.map(toRest));
     fill(HARVEST_DAYS, days.map(toDay));
     Object.keys(snap).filter(k => k.startsWith('d:')).forEach(k => delete snap[k]);
     HARVEST_DAYS.forEach(d => { snap['d:' + d.id] = J(fromDay(d)); });
     boxes.forEach(r => { const list = BOX_SIZES[r.caixa]; if (!list) return; const z = list.find(x => x.s === r.tamanho); if (z) { z.price = +r.preco; z.kg = +r.kg; } else list.push({ s: r.tamanho, kg: +r.kg, price: +r.preco }); });
-    PRODUCTS.filter(p => p.cat === 'caixas' && BOX_SIZES[p.id]).forEach(b => { b.price = Math.min(...BOX_SIZES[b.id].map(z => z.price)); });
+    PRODUCTS.filter(p => p.cat === 'caixas' && BOX_SIZES[p.id] && BOX_SIZES[p.id].length).forEach(b => { b.price = Math.min(...BOX_SIZES[b.id].map(z => z.price)); if (b.custom) b.kg = BOX_SIZES[b.id][0].kg; });
     ocup = {}; oc.forEach(x => { const k = x.dia_id || (HARVEST_DAYS.find(d => d.date === x.dia) || {}).id; if (k) ocup[k] = (ocup[k] || 0) + (+x.pessoas || 0); });
   }
   function guestOrders() { return store.get(GUEST_KEY, []).filter(x => x && x.num); }
@@ -184,6 +188,9 @@ const NUVEM = (() => {
     REQUESTS.forEach(r => { snap['r:' + r.id] = J(fromReq(r)); });
     await loadMsgs();
     N.farmerHarvest = null;
+    /* avaliações públicas dos dias Colhe Connosco (para a lista de dias passados; sem dados pessoais) */
+    try { const rv = await rpc('colhe_avaliacoes', {}) || []; N.harvestReviews = {}; rv.forEach(x => { (N.harvestReviews[x.dia_id] = N.harvestReviews[x.dia_id] || []).push({ name: x.nome || '', rating: +x.avaliacao, comment: x.comentario || '', reply: x.resposta || '', at: x.avaliado || '' }); }); }
+    catch (e) { N.harvestReviews = {}; }
     if (me && me.papel === 'agricultor') { try { N.farmerHarvest = Object.fromEntries((await rpc('colhe_resumo_agricultor', {}) || []).map(x => [x.dia_id || (HARVEST_DAYS.find(d => d.date === x.dia) || {}).id, { people: +x.pessoas || 0, n: +x.n || 0, avg: +x.media || 0, kg: +x.kg || 0, comments: x.comentarios || [] }])); } catch (e) { console.warn(e); } }
   }
   /* mensagens ("Falar com a Daqui"): a gestão vê todas; cada conta vê as suas; sem conta, as da conversa guardada neste navegador */
@@ -235,7 +242,7 @@ const NUVEM = (() => {
       const hs = u.harvests || [], pre = `h:${u._id}|`;
       for (const h of hs) {
         const key = hKey(h), hk = pre + key, r = harvRow(h), dd = HD(key);
-        if (!snap[hk]) { await rest('POST', 'inscricoes_colhe', '', { user_id: u._id, dia_id: key, dia: dd ? dd.date : h.date, pessoas: r.pessoas }, 'return=minimal'); snap[hk] = J({ pessoas: r.pessoas, avaliacao: null, comentario: null, registo: null }); }
+        if (!snap[hk]) { await rest('POST', 'inscricoes_colhe', '', { user_id: u._id, dia_id: key, dia: dd ? dd.date : h.date, pessoas: r.pessoas }, 'return=minimal'); snap[hk] = J({ pessoas: r.pessoas, avaliacao: null, comentario: null, registo: null, resposta: null }); }
         const d = diff(JSON.parse(snap[hk]), r);
         if (d) { await rest('PATCH', 'inscricoes_colhe', `user_id=${eq(u._id)}&dia_id=${eq(key)}`, d, 'return=minimal'); snap[hk] = J(r); }
       }
@@ -280,6 +287,11 @@ const NUVEM = (() => {
     for (const [id, o] of Object.entries(ch.farmers || {})) { const p = mapPatch(o, FARMER_PATCH); if (Object.keys(p).length) await rest('PATCH', 'agricultores', 'id=' + eq(id), p, 'return=minimal'); }
     for (const p of ch.newProducts || []) await rest('POST', 'produtos', 'on_conflict=id', fromProd(p, PRODUCTS.length), up);
     for (const [id, o] of Object.entries(ch.products || {})) { const p = mapPatch(o, PROD_PATCH); if (Object.keys(p).length) await rest('PATCH', 'produtos', 'id=' + eq(id), p, 'return=minimal'); }
+    for (const b of ch.newBoxes || []) {
+      await rest('POST', 'caixas', 'on_conflict=id', { id: b.id, nome_pt: b.name.pt, nome_en: b.name.en || b.name.pt, desc_pt: (b.desc || {}).pt || '', desc_en: (b.desc || {}).en || '', produtos: b.items || [], icone: b.icon || null, ordem: PRODUCTS.filter(p => p.custom).length }, up);
+      await rest('POST', 'caixas_precos', 'on_conflict=caixa,tamanho', b.sizes.map((s, i) => ({ caixa: b.id, tamanho: s.s, kg: +s.kg, preco: +s.price, ordem: i })), up);
+    }
+    for (const id of ch.removedBoxes || []) { await rest('DELETE', 'caixas_precos', 'caixa=' + eq(id), undefined, 'return=minimal'); await rest('DELETE', 'caixas', 'id=' + eq(id), undefined, 'return=minimal'); }
     for (const [box, sizes] of Object.entries(ch.boxes || {})) for (const [sz, price] of Object.entries(sizes)) await rest('PATCH', 'caixas_precos', `caixa=${eq(box)}&tamanho=${eq(sz)}`, { preco: +price }, 'return=minimal');
     if (Array.isArray(ch.harvestDays)) {
       for (const d of ch.harvestDays) { const row = fromDay(d), k = 'd:' + row.id; if (snap[k] !== J(row)) { await rest('POST', 'dias_colhe', 'on_conflict=id', row, up); snap[k] = J(row); } }
@@ -440,7 +452,7 @@ const NUVEM = (() => {
       queue(async () => { if (c) await loadCatalog(); if (p) await loadPeople(); if (signature() !== before) softRender(); }, true);
     }, 500);
   }
-  const signature = () => J([PRODUCTS, FARMERS, RESTAURANTS, HARVEST_DAYS, BOX_SIZES, USERS, ORDERS, REQUESTS, ocup, typeof MESSAGES === 'undefined' ? 0 : MESSAGES, N.farmerHarvest || 0]);
+  const signature = () => J([PRODUCTS, FARMERS, RESTAURANTS, HARVEST_DAYS, BOX_SIZES, USERS, ORDERS, REQUESTS, ocup, typeof MESSAGES === 'undefined' ? 0 : MESSAGES, N.harvestReviews || 0, N.farmerHarvest || 0]);
   function softRender() {
     const busy = $('#modal.on') || (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) && document.activeElement.closest('main'));
     if (busy) { setTimeout(softRender, 2500); return; }

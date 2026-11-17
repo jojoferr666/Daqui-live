@@ -122,7 +122,7 @@ function approveRequest(r, msg = '') {
     const id = uniqueId(u.partner.farm, FARMERS), c = REGION_CENTER[u.partner.region] || REGION_CENTER.aveiro, j = () => (Math.random() - .5) * .3;
     const nf = { id, name: u.name, farm: u.partner.farm, place: u.partner.place, region: u.partner.region, lat: +(c[0] + j()).toFixed(3), lon: +(c[1] + j()).toFixed(3), since: new Date().getFullYear(), crop: 'alface', seed: Math.floor(Math.random() * 14),
       story: u.partner.story || { pt: `${u.partner.farm}, em ${u.partner.place}. Nova quinta parceira da Daqui.`, en: `${u.partner.farm} in ${u.partner.place}. A new Daqui partner farm.` } };
-    if (u.partner.region === 'madeira') nf.island = 'madeira';
+    if (ISLAND_REGIONS.includes(u.partner.region)) nf.island = u.partner.region;
     saveCatalog(ch => { ch.newFarmers = (ch.newFarmers || []).concat(nf); }); u.partner.farmerId = id; u.partner.approved = true;
   } else if (r.type === 'selo') {
     const id = uniqueId(u.partner.name, RESTAURANTS), y = new Date();
@@ -186,7 +186,7 @@ function catRows() {
   return PRODUCTS.filter(p => p.cat !== 'caixas').filter(p => !q || norm(`${p.name.pt} ${p.name.en} ${p.id}`).includes(q))
     .filter(p => catFilter === 'all' || p.cat === catFilter || (catFilter === 'changed' && (ch[p.id] || newIds.includes(p.id))) || (catFilter === 'nostock' && p.outOfStock))
     .map(p => { const [a, b] = p.season, sp = splitOf(p), changed = ch[p.id] || newIds.includes(p.id);
-      return `<tr data-row="${p.id}"><td><div class="row-gap nowrap"><span class="thumb">${artFor(p)}</span><span><a href="${productHref(p)}">${esc(L(p.name))}</a><br><span class="small muted">${p.id}${changed ? ` · <b class="c-campo">${T('alterado', 'edited')}</b>` : ''}${p.isNew ? ` · ${T('novo', 'new')}` : ''}</span><br><span class="small">${offersOf(p).map(o => `${esc((F(o.farmer) || { name: o.farmer }).name)} <span class="muted">(${o.organic ? 'bio' : T('conv.', 'conv.')}${o.outOfStock ? ', ' + T('sem stock', 'no stock') : ''})</span>`).join(', ')}</span></span></div></td>
+      return `<tr data-row="${p.id}"><td><div class="row-gap nowrap"><button type="button" class="thumb thumb-btn" data-cat-img="${p.id}" title="${T('Mudar a imagem', 'Change the picture')}" aria-label="${T('Mudar a imagem de', 'Change the picture of')} ${esc(L(p.name))}">${artFor(p)}<span class="thumb-ed">${icon('edit', 12)}</span></button><span><a href="${productHref(p)}">${esc(L(p.name))}</a><br><span class="small muted">${p.id}${changed ? ` · <b class="c-campo">${T('alterado', 'edited')}</b>` : ''}${p.isNew ? ` · ${T('novo', 'new')}` : ''}</span><br><span class="small">${offersOf(p).map(o => `${esc((F(o.farmer) || { name: o.farmer }).name)} <span class="muted">(${o.organic ? 'bio' : T('conv.', 'conv.')}${o.outOfStock ? ', ' + T('sem stock', 'no stock') : ''})</span>`).join(', ')}</span></span></div></td>
         <td><input class="num" type="number" step="0.01" min="0" value="${p.price}" data-cat-edit="${p.id}" data-f="price" aria-label="${T('Preço de', 'Price of')} ${esc(L(p.name))}"><span class="small muted">${unitLabel(p.unit)}${hasBio(p) && hasConv(p) ? `<br>${T('convencional; biológico', 'conventional; organic')} ${money(variantPrice(p, true))}` : hasBio(p) ? `<br>${T('biológico', 'organic')}` : ''}</span></td>
         <td class="nowrap"><select class="sel sm" data-cat-edit="${p.id}" data-f="s0" aria-label="${T('Início da época', 'Season start')}">${monthOpts(a)}</select> – <select class="sel sm" data-cat-edit="${p.id}" data-f="s1" aria-label="${T('Fim da época', 'Season end')}">${monthOpts(b)}</select></td>
         <td class="nowrap">${['sp0', 'sp1', 'sp2'].map((f, i) => `<input class="num pct" type="number" min="0" max="100" value="${sp[i]}" data-cat-edit="${p.id}" data-f="${f}" aria-label="${[T('Agricultor', 'Farmer'), T('Conservação e embalamento', 'Storage and packing'), 'Daqui'][i]} %">`).join('')}</td>
@@ -194,7 +194,6 @@ function catRows() {
         <td>${newIds.includes(p.id) ? `<button class="rm" data-del-prod="${p.id}" aria-label="${T('Apagar', 'Delete')} ${esc(L(p.name))}">${icon('trash', 18)}</button>` : ''}</td></tr>`; }).join('');
 }
 function tabCatalogo() {
-  const icons = PRODUCTS.filter(p => !p.isNew).map(p => p.id).sort();
   return `<section class="acc-sec"><h2>${T('Catálogo de produtos', 'Product catalogue')}</h2>
     <p class="muted mt-s">${T('Altere preços, meses da época, a divisão do preço (agricultor / conservação e embalamento / Daqui, a somar 100%) e marque produtos da época como fora de stock. Cada alteração é aplicada logo no site, neste navegador.', 'Change prices, season months, the price split (farmer / storage and packing / Daqui, adding up to 100%) and mark in-season products as out of stock. Every change applies to the site straight away, in this browser.')}</p>
     <details class="panel mt"><summary class="lbl">${icon('plus', 18)} ${T('Adicionar produto novo', 'Add a new product')}</summary>
@@ -204,7 +203,8 @@ function tabCatalogo() {
           <div class="field"><label for="np-farmer">${T('Agricultor', 'Farmer')}</label><select id="np-farmer">${FARMERS.map(f => `<option value="${f.id}">${esc(f.name)} (${esc(f.place)})</option>`).join('')}</select></div></div>
         <div class="row"><div class="field"><label for="np-price">${T('Preço (€)', 'Price (€)')}</label><input id="np-price" type="number" step="0.01" min="0" required></div><div class="field"><label for="np-unit">${T('Unidade', 'Unit')}</label><select id="np-unit">${UNIT_OPTS('kg')}</select></div></div>
         <div class="row"><div class="field"><label for="np-s0">${T('Época: de', 'Season: from')}</label><select id="np-s0">${monthOpts(1)}</select></div><div class="field"><label for="np-s1">${T('até', 'to')}</label><select id="np-s1">${monthOpts(12)}</select></div></div>
-        <div class="row"><div class="field"><label for="np-icon">${T('Ícone (ficheiro em img/produtos)', 'Icon (file in img/produtos)')}</label><select id="np-icon"><option value="_novo">${T('Provisório', 'Placeholder')} (_novo.svg)</option>${icons.map(i => `<option value="${i}">${i}.svg</option>`).join('')}</select></div>
+        <div class="row"><div class="field"><label for="np-icon">${T('Ícone (ficheiro em img/produtos)', 'Icon (file in img/produtos)')}</label><div class="icon-pick"><span class="img-prev sm" id="np-prev"><img src="${R}img/produtos/_novo.svg" alt=""></span><select id="np-icon" data-icon-pick data-icon-prev="np-prev">${iconOptions('_novo')}</select></div>
+          <label class="small" for="np-icon-f">${T('Ou escreva o nome do ficheiro (sem .svg)', 'Or type the file name (without .svg)')}</label><input id="np-icon-f" class="sel" data-icon-free="np-icon" placeholder="pessego-paraguaio" autocomplete="off"></div>
           <div class="field"><span class="lbl">${T('Etiquetas', 'Tags')}</span><label class="switch sm"><input type="checkbox" id="np-ess">${T('Essencial', 'Essential')}</label><label class="switch sm"><input type="checkbox" id="np-bio">${T('Biológico', 'Organic')}</label><span class="small muted">${T('Só biológico: indique o preço do biológico. O biológico custa mais 20% do que o convencional.', 'Organic only: enter the organic price. Organic costs 20% more than conventional.')}</span></div></div>
         <div class="row"><div class="field"><label for="np-dpt">${T('Descrição em português', 'Description in Portuguese')}</label><textarea id="np-dpt" rows="2"></textarea></div><div class="field"><label for="np-den">${T('Descrição em inglês', 'Description in English')}</label><textarea id="np-den" rows="2"></textarea></div></div>
         <p class="err" hidden></p><button class="btn btn-green" type="submit">${T('Adicionar ao catálogo', 'Add to catalogue')}</button>
@@ -224,12 +224,36 @@ function dupPanel() {
 }
 
 /* ---------- Caixas ---------- */
+/* criar um tipo de caixa novo (ex.: frutos secos, aromáticas, fruta exótica): nome, produtos que pode levar e preço por tamanho */
+let nbQuery = '', nbPick = new Set();
+function nbList() {
+  const q = norm(nbQuery);
+  return ['fruta', 'legumes'].map(c => { const l = PRODUCTS.filter(p => p.cat === c && (!q || norm(`${p.name.pt} ${p.name.en}`).includes(q))).sort((a, b) => L(a.name).localeCompare(L(b.name)));
+    return l.length ? `<fieldset class="nb-group"><legend>${catName(c)}</legend>${l.map(p => `<label class="nb-item"><input type="checkbox" value="${p.id}" data-nb-item${nbPick.has(p.id) ? ' checked' : ''}><span class="thumb">${artFor(p)}</span><span>${esc(L(p.name))}${inSeason(p) ? '' : ` <span class="small muted">(${T('fora de época', 'out of season')})</span>`}</span></label>`).join('')}</fieldset>` : ''; }).join('');
+}
+function newBoxForm() {
+  const sz = [['P', 3, ''], ['M', 5, ''], ['G', 8, '']];
+  return `<details class="panel mt"><summary class="lbl">${icon('plus', 18)} ${T('Criar uma caixa nova', 'Create a new box')}</summary>
+    <form class="form mt-s" data-newbox novalidate>
+      <p class="small muted">${T('Por exemplo: Caixa de Frutos Secos, Caixa de Aromáticas, Caixa de Fruta Exótica. A caixa aparece na loja, nas subscrições e na app; cada semana leva produtos da época escolhidos desta lista.', 'For example: Nuts Box, Herbs Box, Exotic Fruit Box. The box shows in the shop, subscriptions and the app; each week it carries seasonal products picked from this list.')}</p>
+      <div class="row"><div class="field"><label for="nb-pt">${T('Nome em português', 'Name in Portuguese')}</label><input id="nb-pt" required placeholder="${T('Caixa de Frutos Secos', 'Caixa de Frutos Secos')}"></div><div class="field"><label for="nb-en">${T('Nome em inglês', 'Name in English')}</label><input id="nb-en" placeholder="Nuts Box"></div></div>
+      <div class="row"><div class="field"><label for="nb-dpt">${T('Descrição em português', 'Description in Portuguese')}</label><textarea id="nb-dpt" rows="2"></textarea></div><div class="field"><label for="nb-den">${T('Descrição em inglês', 'Description in English')}</label><textarea id="nb-den" rows="2"></textarea></div></div>
+      <fieldset class="plain"><legend class="lbl">${T('Tamanhos e preços', 'Sizes and prices')} <span class="small muted">(${T('o tamanho pequeno é obrigatório; deixe o preço vazio para não ter esse tamanho', 'the small size is required; leave the price empty to skip a size')})</span></legend>
+        <div class="nb-sizes">${sz.map(([s, kg]) => `<div class="nb-size"><b>${sizeName(s)}</b><label class="field inl"><span class="lbl">kg</span><input class="num" type="number" min="0.1" step="0.1" id="nb-kg-${s}" value="${kg}"></label><label class="field inl"><span class="lbl">${T('Preço (€)', 'Price (€)')}</span><input class="num" type="number" min="0" step="0.10" id="nb-pr-${s}"${s === 'P' ? ' required' : ''}></label></div>`).join('')}</div></fieldset>
+      <fieldset class="plain"><legend class="lbl">${T('Produtos que a caixa pode levar', 'Products the box can carry')} <span class="small muted" id="nb-count">(${nbPick.size} ${T('escolhidos', 'chosen')})</span></legend>
+        <label class="sr" for="nb-q">${T('Procurar produto', 'Find a product')}</label><input id="nb-q" class="sel" type="search" placeholder="${T('Procurar produto…', 'Find a product…')}" value="${esc(nbQuery)}" data-nb-q>
+        <div class="nb-list" id="nb-list">${nbList()}</div></fieldset>
+      <p class="err" hidden></p><button class="btn btn-green" type="submit">${T('Criar caixa', 'Create box')}</button>
+    </form></details>`;
+}
 function tabCaixas() {
   const subsOf = id => Object.values(USERS).flatMap(c => (c.subs || []).filter(s => s.box === id).map(s => ({ c, s })));
   return `<section class="acc-sec"><h2>${T('Caixas e preços das subscrições', 'Boxes and subscription prices')}</h2>
     <p class="muted mt-s">${T('Mude o preço atual de cada tamanho para testar o preço garantido: se subir, os subscritores continuam a pagar o preço guardado; se descer, passam a pagar o mais baixo e esse fica guardado.', 'Change the current price of each size to test the price guarantee: if it goes up, subscribers keep paying their saved price; if it goes down, they pay the lower price and it becomes their saved price.')}</p>
-    ${BOXES.map(b => { const list = subsOf(b.id); return `<div class="box-row">
-      <div class="row-gap"><span class="thumb lg">${artFor(b)}</span><h3>${esc(L(b.name))}</h3></div>
+    ${newBoxForm()}
+    ${allBoxes().map(b => { const list = subsOf(b.id); return `<div class="box-row">
+      <div class="row-between"><div class="row-gap"><span class="thumb lg">${artFor(b)}</span><div><h3>${esc(L(b.name))}</h3>${b.custom ? `<span class="small muted">${T('Criada na gestão', 'Created by management')} · ${(b.items || []).length} ${T('produtos', 'products')}: ${(b.items || []).map(id => P(id)).filter(Boolean).slice(0, 6).map(x => esc(L(x.name))).join(', ')}${(b.items || []).length > 6 ? '…' : ''}</span>` : ''}</div></div>
+        ${b.custom ? (list.length ? `<span class="small muted">${T('Tem subscritores: não pode ser apagada', 'Has subscribers: cannot be deleted')}</span>` : `<button class="btn btn-line btn-sm c-tomato" data-box-del="${b.id}">${icon('trash', 16)} ${T('Apagar caixa', 'Delete box')}</button>`) : ''}</div>
       <div class="row-gap mt-s">${BOX_SIZES[b.id].map(s => `<label class="field inl"><span class="lbl">${sizeName(s.s)}, ${s.kg} kg (€)</span><input class="num" type="number" step="0.10" min="0" value="${s.price}" data-box-price="${b.id}:${s.s}"></label>`).join('')}</div>
       ${list.length ? `<table class="tbl mt-s"><thead><tr><th>${T('Subscritor', 'Subscriber')}</th><th>${T('Tamanho', 'Size')}</th><th>${T('Preço guardado', 'Saved price')}</th><th>${T('Preço atual', 'Current price')}</th><th>${T('Paga por caixa', 'Pays per box')}</th></tr></thead><tbody>${list.map(({ c, s }) => { refreshSub(s); const cur = boxCurrentPrice(s.box, s.size); return `<tr><td>${esc(c.name)}</td><td>${sizeName(s.size)}</td><td>${money(s.locked)}</td><td>${money(cur)}</td><td><b>${money(Math.min(cur, s.locked))}</b>${cur > s.locked ? ` <span class="small muted">(${T('poupa', 'saves')} ${money(cur - s.locked)})</span>` : ''}</td></tr>`; }).join('')}</tbody></table>` : `<p class="small muted mt-s">${T('Sem subscritores.', 'No subscribers.')}</p>`}
     </div>`; }).join('')}</section>`;
@@ -246,7 +270,7 @@ function harvestDoneCard(d) {
     <p class="small mt-s">${sm.people} ${T('participantes', 'participants')} · ${sm.n ? `${stars(Math.round(sm.avg))} ${numFmt(round2(sm.avg))} (${sm.n} ${sm.n === 1 ? T('avaliação', 'review') : T('avaliações', 'reviews')})` : T('sem avaliações', 'no reviews')}${sm.kg ? ` · ${numFmt(sm.kg)} kg ${T('registados', 'recorded')}` : ''}</p>
     ${list.length ? `<div class="tbl-wrap mt-s"><table class="tbl"><thead><tr><th>${T('Participante', 'Participant')}</th><th>${T('Avaliação', 'Review')}</th><th>${T('Registo de colheita', 'Harvest record')}</th></tr></thead><tbody>${list.map(x => { const h = (x.user.harvests || []).find(y => hIs(y, d)) || {}, rec = h.record || {};
       return `<tr><td><b>${esc(x.user.name)}</b><br><span class="small muted">${esc(x.user.phone)} · ${x.people} ${x.people > 1 ? T('pessoas', 'people') : T('pessoa', 'person')}</span></td>
-        <td>${h.rating ? `${stars(+h.rating)}${h.comment ? `<br><span class="small">${esc(h.comment)}</span>` : ''}` : `<span class="small muted">${harvestRateOpen(d) ? T('ainda não avaliou', 'not reviewed yet') : T('sem avaliação', 'no review')}</span>`}</td>
+        <td>${h.rating ? `<ul class="reviews compact">${reviewItem(d, { user: x.user.username, name: firstName(x.user.name), rating: +h.rating, comment: h.comment || '', reply: h.reply ? h.reply.text : '' }, true)}</ul>` : `<span class="small muted">${harvestRateOpen(d) ? T('ainda não avaliou', 'not reviewed yet') : T('sem avaliação', 'no review')}</span>`}</td>
         <td><div class="row-gap"><label class="sr" for="rg-kg-${rid(x.user.username)}">kg</label><input class="num" id="rg-kg-${rid(x.user.username)}" type="number" min="0" step="0.1" value="${rec.kg ?? ''}" placeholder="kg" data-rg-kg="${rid(x.user.username)}"${pr ? ` data-rg-unit="${pr.price}"` : ''}>
           <label class="sr" for="rg-pr-${rid(x.user.username)}">${T('Valor pago (€)', 'Amount paid (€)')}</label><input class="num" id="rg-pr-${rid(x.user.username)}" type="number" min="0" step="0.01" value="${rec.price ?? ''}" placeholder="€"${rec.price != null ? ' data-touched="1"' : ''}>
           <label class="sr" for="rg-nt-${rid(x.user.username)}">${T('Nota', 'Note')}</label><input class="sel" id="rg-nt-${rid(x.user.username)}" value="${esc(rec.note || '')}" placeholder="${T('Nota (opcional)', 'Note (optional)')}">
@@ -323,6 +347,20 @@ function tabExportar() {
 /* ---------- eventos do painel ---------- */
 const adminOnly = () => PAGE === 'conta' && currentUser()?.role === 'admin';
 PAGE_EVENTS.click.push((e, t, d) => {
+  if (d.catImg && adminOnly()) { const p = P(d.catImg), cur = p.icon || p.id;
+    openModal(`<div class="mbody"><h2>${T('Imagem de', 'Picture of')} ${esc(L(p.name))}</h2>
+      <p class="small muted">${T('Escolha um desenho da pasta img/produtos. Os ficheiros novos que puser nessa pasta aparecem nesta lista (no site publicado no GitHub, ou depois de correr node ferramentas/listar-icones.js).', 'Pick a drawing from the img/produtos folder. New files you put there show in this list (on the site published on GitHub, or after running node ferramentas/listar-icones.js).')}</p>
+      <div class="icon-pick mt-s"><span class="img-prev" id="ci-prev"><img src="${R}img/produtos/${esc(cur)}.svg" alt=""></span><div class="img-pick-c"><label for="ci-icon">${T('Desenho', 'Drawing')}</label><select id="ci-icon" data-icon-pick data-icon-prev="ci-prev">${iconOptions(cur)}</select>
+        <label class="small" for="ci-free">${T('Ou escreva o nome do ficheiro (sem .svg)', 'Or type the file name (without .svg)')}</label><input id="ci-free" class="sel" data-icon-free="ci-icon" autocomplete="off"></div></div>
+      ${p.photo ? `<p class="small muted mt-s">${T('Este produto usa uma fotografia; ao guardar, passa a usar o desenho escolhido.', 'This product uses a photo; saving switches it to the chosen drawing.')}</p>` : ''}
+      <div class="row-btns mt"><button class="btn btn-green" data-site-page="conta" data-cat-img-save="${p.id}">${T('Guardar imagem', 'Save picture')}</button><button class="btn btn-line c-campo" data-modal-close>${T('Cancelar', 'Cancel')}</button></div></div>`, T('Imagem do produto', 'Product picture'));
+    return true; }
+  if (d.catImgSave && adminOnly()) { const v = $('#ci-icon').value; saveCatalog(ch => { ch.products = ch.products || {}; ch.products[d.catImgSave] = Object.assign(ch.products[d.catImgSave] || {}, { icon: v, photo: '' }); }); closeModal(); toast(T('Imagem alterada', 'Picture changed')); $('#cat-body') ? ($('#cat-body').innerHTML = catRows()) : rerenderKeep(); return true; }
+  if (d.boxDel && adminOnly()) { const b = P(d.boxDel); if (!b || !b.custom) return true;
+    if (t.dataset.confirm !== '1') { t.dataset.confirm = '1'; t.innerHTML = `${icon('trash', 16)} ${T('Confirmar: apagar', 'Confirm: delete')}`; return true; }
+    saveCatalog(ch => { ch.newBoxes = (ch.newBoxes || []).filter(x => x.id !== b.id); ch.removedBoxes = (ch.removedBoxes || []).concat(b.id); if (ch.boxes) delete ch.boxes[b.id]; });
+    if (!NUVEM.on) { const i = PRODUCTS.indexOf(b); if (i >= 0) PRODUCTS.splice(i, 1); delete BOX_SIZES[b.id]; }
+    toast(T('Caixa apagada', 'Box deleted')); rerenderKeep(); return true; }
   if (!adminOnly()) return;
   if (d.adminTab) { adminTab = d.adminTab; rerenderKeep(`[data-admin-tab="${d.adminTab}"]`); return true; }
   if (d.accFilter) { accFilter = d.accFilter; rerenderKeep(`[data-acc-filter="${d.accFilter}"]`); return true; }
@@ -369,8 +407,34 @@ PAGE_EVENTS.input.push((e, t) => {
   if (t.dataset.rgKg) { const pr = $('#rg-pr-' + t.dataset.rgKg); if (pr && !pr.dataset.touched && t.dataset.rgUnit && t.value !== '') pr.value = round2(+t.value * +t.dataset.rgUnit).toFixed(2); }
   if (t.id && t.id.startsWith('rg-pr-')) t.dataset.touched = '1';
 });
+PAGE_EVENTS.change.push((e, t) => {
+  if (!adminOnly() || !t.matches('[data-nb-item]')) return;
+  t.checked ? nbPick.add(t.value) : nbPick.delete(t.value); const c = $('#nb-count'); if (c) c.textContent = `(${nbPick.size} ${T('escolhidos', 'chosen')})`;
+});
+/* escolher o ícone de um produto: pré-visualização e nome de ficheiro escrito à mão */
+PAGE_EVENTS.change.push((e, t) => { if (t.matches('select[data-icon-prev]')) { const im = $('#' + t.dataset.iconPrev + ' img'); if (im) im.src = `${R}img/produtos/${t.value}.svg`; } });
+PAGE_EVENTS.input.push((e, t) => {
+  if (!t.matches('[data-icon-free]')) return;
+  const v = t.value.trim().replace(/\.svg$/i, '').replace(/[^a-z0-9_-]/gi, ''), s = $('#' + t.dataset.iconFree); if (!s || !v) return;
+  if (![...s.options].some(o => o.value === v)) s.insertAdjacentHTML('beforeend', `<option value="${esc(v)}">${esc(v)}.svg</option>`);
+  s.value = v; s.dispatchEvent(new Event('change', { bubbles: true }));
+});
+PAGE_EVENTS.input.push((e, t) => { if (adminOnly() && t.matches('[data-nb-q]')) { nbQuery = t.value; $('#nb-list').innerHTML = nbList(); } });
 PAGE_EVENTS.submit.push((e, f) => {
   if (!adminOnly()) return;
+  if (f.matches('[data-newbox]')) {
+    e.preventDefault(); const err = $('.err', f), fail = (m, el) => { err.hidden = false; err.textContent = m; if (el) el.focus(); return true; };
+    const pt = $('#nb-pt').value.trim(); if (!pt) return fail(T('Escreva o nome da caixa.', 'Enter the box name.'), $('#nb-pt'));
+    if (PRODUCTS.some(p => p.cat === 'caixas' && norm(p.name.pt) === norm(pt))) return fail(T('Já existe uma caixa com esse nome.', 'There is already a box with that name.'), $('#nb-pt'));
+    const sizes = ['P', 'M', 'G'].map(s => ({ s, kg: +$('#nb-kg-' + s).value || 0, price: $('#nb-pr-' + s).value })).filter(x => x.price !== '').map(x => ({ s: x.s, kg: x.kg, price: round2(Math.max(0, +x.price)) }));
+    if (!sizes.length || sizes[0].s !== 'P') return fail(T('Indique pelo menos o preço do tamanho pequeno.', 'Enter at least the small size price.'), $('#nb-pr-P'));
+    if (sizes.some(x => !(x.kg > 0))) return fail(T('Indique os quilos de cada tamanho.', 'Enter the kilos for each size.'));
+    if (nbPick.size < 2) return fail(T('Escolha pelo menos 2 produtos.', 'Pick at least 2 products.'), $('#nb-q'));
+    const id = uniqueId(/^caixa\b/i.test(pt) ? pt : 'caixa ' + pt, PRODUCTS);
+    const nb = { id, name: { pt, en: $('#nb-en').value.trim() || pt }, desc: { pt: $('#nb-dpt').value.trim(), en: $('#nb-den').value.trim() }, items: [...nbPick], sizes };
+    saveCatalog(ch => { ch.newBoxes = (ch.newBoxes || []).filter(x => x.id !== id).concat(nb); });
+    nbPick = new Set(); nbQuery = ''; toast(T(`Caixa criada: ${pt}`, `Box created: ${nb.name.en}`)); rerenderKeep(); return true;
+  }
   if (f.matches('[data-newprod]')) {
     e.preventDefault(); if (!validate(f)) return true;
     const id = uniqueId($('#np-pt').value, PRODUCTS);

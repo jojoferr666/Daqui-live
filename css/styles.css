@@ -936,3 +936,51 @@ img.picon.photo{object-fit:cover;border-radius:inherit}
 .thumb .picon.photo{width:100%;height:100%;object-fit:cover}
 .ordcard.cc-rec{padding-left:12px}
 .img-pick-c .btn{justify-self:start}
+/* ---------- versão 10 ---------- */
+/* área do agricultor: as duas ações de cada produto lado a lado, com espaço entre elas */
+.prod-acts{display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px}
+.btn-ghost{background:transparent;border:1.5px solid transparent;box-shadow:none}
+.btn-ghost.c-tomato{color:#B3412A}
+.btn-ghost.c-tomato:hover{border-color:#E7B4A6;background:#FBEDE8}
+.btn-ghost .ic{width:16px;height:16px}
+/* Colhe Connosco: dias passados, avaliações e respostas da Daqui */
+.past-days{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:16px}
+.past-day{background:var(--white);border:1px solid var(--line);border-radius:var(--r-lg);padding:18px}
+.past-day-h{display:flex;gap:14px;align-items:flex-start}
+.past-day .date{flex:none;width:58px;text-align:center;background:var(--campo);color:var(--pera);border-radius:12px;padding:6px 0;line-height:1.1}
+.past-day .date b{display:block;font-family:var(--display);font-size:1.6rem;font-weight:400}
+.past-day .date span{display:block;font-size:.78rem;color:var(--paper)}
+.past-day .date .y{opacity:.75;font-size:.7rem}
+.past-day h3{font-size:1.15rem;margin:0}
+.past-avg{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
+.reviews{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:12px}
+.review{border-top:1px dashed var(--line);padding-top:10px}
+.review-h{display:flex;gap:8px;align-items:center}
+.review-t{margin:4px 0 0}
+.review-reply{display:flex;gap:8px;align-items:flex-start;background:var(--sage);border-radius:12px;padding:8px 12px;margin:6px 0 0;font-size:.93rem}
+.review-reply .ic{flex:none;margin-top:3px;color:var(--campo)}
+.reply-form{display:grid;gap:6px;margin-top:8px}
+.reply-form textarea{width:100%;font:inherit;border:1.5px solid var(--line);border-radius:12px;padding:8px 10px;resize:vertical}
+.reply-form .btn{justify-self:start}
+.reviews.compact{margin:0}
+.reviews.compact .review{border:0;padding:0}
+/* gestão: nova caixa (lista de produtos a escolher) */
+.nb-sizes{display:flex;flex-wrap:wrap;gap:12px}
+.nb-size{display:flex;align-items:flex-end;gap:8px;background:var(--sage);border-radius:12px;padding:8px 12px}
+.nb-size b{align-self:center;min-width:56px}
+.nb-list{max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:8px 12px;margin-top:8px;background:var(--white)}
+.nb-group{border:0;margin:0 0 8px;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:4px 12px}
+.nb-group legend{font-weight:700;padding:6px 0;grid-column:1/-1}
+.nb-item{display:flex;align-items:center;gap:8px;min-height:40px;cursor:pointer}
+.nb-item input{width:18px;height:18px;accent-color:var(--campo)}
+.nb-item .thumb{width:32px;height:32px;border-radius:8px;background:var(--sage);display:grid;place-items:center;flex:none}
+.nb-item .thumb .picon{width:26px;height:26px}
+svg.picon.crate{width:100%;height:100%}
+/* gestão: mudar a imagem de um produto */
+.thumb-btn{position:relative;border:0;cursor:pointer;padding:0}
+.thumb-btn:hover{outline:2px solid var(--campo)}
+.thumb-btn .thumb-ed{position:absolute;right:-4px;bottom:-4px;width:18px;height:18px;border-radius:50%;background:var(--campo);color:var(--pera);display:grid;place-items:center}
+.icon-pick{display:flex;gap:12px;align-items:center}
+.img-prev.sm{width:56px;height:56px}
+/* mapa de Aveiro com mosaicos reais */
+.avmap .av-tiles image{image-rendering:auto}

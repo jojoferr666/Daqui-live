@@ -24,12 +24,25 @@ function mergeChanges(a, b) {
   const out = JSON.parse(JSON.stringify(a || {}));
   for (const [k, v] of Object.entries(b || {})) {
     if (['products', 'boxes', 'farmers', 'restaurants'].includes(k)) { out[k] = out[k] || {}; for (const [id, o] of Object.entries(v)) out[k][id] = Object.assign({}, out[k][id] || {}, o); }
-    else if (['newProducts', 'newFarmers', 'newRestaurants'].includes(k)) { const list = (out[k] || []).filter(x => !v.some(y => y.id === x.id)); out[k] = list.concat(v); }
+    else if (['newProducts', 'newFarmers', 'newRestaurants', 'newBoxes'].includes(k)) { const list = (out[k] || []).filter(x => !v.some(y => y.id === x.id)); out[k] = list.concat(v); }
     else out[k] = JSON.parse(JSON.stringify(v));
   }
   return out;
 }
+/* caixas criadas na gestão (ex.: frutos secos, aromáticas, fruta exótica): produto da categoria "caixas" + preços por tamanho */
+function boxProduct(b) {
+  const sizes = (b.sizes || []).filter(s => s && s.s && +s.price >= 0);
+  return { id: b.id, cat: 'caixas', box: 'custom', custom: true, items: (b.items || []).slice(), icon: b.icon || '', name: { pt: b.name.pt, en: b.name.en || b.name.pt }, desc: { pt: (b.desc || {}).pt || '', en: (b.desc || {}).en || (b.desc || {}).pt || '' },
+    price: sizes.length ? Math.min(...sizes.map(s => +s.price)) : 0, unit: 'cx', kg: sizes.length ? +sizes[0].kg : 0, essential: false, organic: false, isNew: true };
+}
+function applyBox(b) {
+  const np = boxProduct(b), ex = PRODUCTS.find(p => p.id === b.id);
+  if (ex) Object.assign(ex, np); else { const i = PRODUCTS.findIndex(p => p.cat !== 'caixas'); PRODUCTS.splice(i < 0 ? PRODUCTS.length : i, 0, np); }
+  BOX_SIZES[b.id] = (b.sizes || []).map(s => ({ s: s.s, kg: +s.kg, price: +s.price }));
+}
 function applyChanges(ch) {
+  (ch.newBoxes || []).forEach(applyBox);
+  (ch.removedBoxes || []).forEach(id => { const i = PRODUCTS.findIndex(p => p.id === id && p.custom); if (i >= 0) PRODUCTS.splice(i, 1); delete BOX_SIZES[id]; });
   (ch.removedProducts || []).forEach(id => { const i = PRODUCTS.findIndex(p => p.id === id); if (i >= 0) PRODUCTS.splice(i, 1); });
   (ch.newProducts || []).forEach(np => { const ex = PRODUCTS.find(p => p.id === np.id); if (ex) Object.assign(ex, np); else PRODUCTS.push(Object.assign({ isNew: true }, np)); });
   for (const [id, o] of Object.entries(ch.products || {})) { const p = PRODUCTS.find(x => x.id === id); if (p) Object.assign(p, o); }
@@ -53,7 +66,7 @@ function catalogChangeCount() {
   if (typeof NUVEM !== 'undefined' && NUVEM.on) return 0;
   const S = typeof SAVED_CHANGES !== 'undefined' ? SAVED_CHANGES : {}, M = mergeChanges(S, LOCAL_CHANGES), same = (a, b) => JSON.stringify(a) === JSON.stringify(b); let n = 0;
   for (const k of ['products', 'boxes', 'farmers', 'restaurants']) for (const id of Object.keys(M[k] || {})) if (!same(M[k][id], (S[k] || {})[id])) n++;
-  for (const k of ['newProducts', 'newFarmers', 'newRestaurants']) for (const x of M[k] || []) if (!same(x, (S[k] || []).find(y => y.id === x.id))) n++;
+  for (const k of ['newProducts', 'newFarmers', 'newRestaurants', 'newBoxes']) for (const x of M[k] || []) if (!same(x, (S[k] || []).find(y => y.id === x.id))) n++;
   for (const id of M.removedProducts || []) if (!(S.removedProducts || []).includes(id)) n++;
   if (!same(M.harvestDays, S.harvestDays)) n++;
   return n;

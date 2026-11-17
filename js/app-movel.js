@@ -97,7 +97,7 @@ function prodCard(p) {
 }
 function boxCard(b) {
   const next = slotOptions()[0];
-  return `<a class="a-box" href="${productHref(b)}"><span class="a-box-art">${crateSVG(b.box || 'mista')}</span>
+  return `<a class="a-box" href="${productHref(b)}"><span class="a-box-art">${boxArt(b)}</span>
     <span class="a-box-body"><b>${esc(L(b.name))}</b><span class="muted small">${esc(L(b.desc)).slice(0, 90)}${L(b.desc).length > 90 ? '…' : ''}</span>
     <span class="a-box-foot"><span class="a-price">${T('desde', 'from')} ${money(b.price)}</span>${next ? `<span class="a-chip">${icon('calendar', 14)}${slotLabel(next.date)}</span>` : ''}</span></span></a>`;
 }
@@ -216,10 +216,10 @@ function scrProduto(id, u) {
   if (!box && detQty < qtyStep(p)) detQty = qtyStep(p);
   const unit = box ? sizes.find(s => s.s === detSize).price : variantPrice(p, detBio), total = round2(unit * detQty), nOff = farmersOf(p).length;
   const months = Array.from({ length: 12 }, (_, i) => { const m = i + 1, [x, y] = p.season || [1, 12], inS = x <= y ? m >= x && m <= y : m >= x || m <= y; return `<i class="${inS ? 'on' : ''}${m === NOW_M ? ' now' : ''}" title="${monthName(m)}">${monthName(m, 'narrow')}</i>`; }).join('');
-  const pool = box ? PRODUCTS.filter(x => x.cat !== 'caixas' && available(x) && (p.id === 'caixa-essencial' ? x.essential : p.id === 'caixa-fruta' ? x.cat === 'fruta' : p.id === 'caixa-legumes' ? x.cat === 'legumes' : true) && !(u && (u.exclude || []).includes(x.id))) : [];
+  const pool = box ? PRODUCTS.filter(x => x.cat !== 'caixas' && available(x) && (p.items ? p.items.includes(x.id) : p.id === 'caixa-essencial' ? x.essential : p.id === 'caixa-fruta' ? x.cat === 'fruta' : p.id === 'caixa-legumes' ? x.cat === 'legumes' : true) && !(u && (u.exclude || []).includes(x.id))) : [];
   const sample = p.id === 'caixa-mista' ? pool.filter(x => x.cat === 'fruta').slice(0, 4).concat(pool.filter(x => x.cat === 'legumes').slice(0, 4)) : pool.slice(0, 8);
   return { title: L(p.name), back: true, noBar: true, html: `
-    <div class="a-pdp-hero${box ? ' box' : ''}"><button class="a-round" data-app-back aria-label="${T('Voltar', 'Back')}">${icon('chevL', 24)}</button>${favBtn(p.id, true)}${box ? crateSVG(p.box || 'mista') : artFor(p)}</div>
+    <div class="a-pdp-hero${box ? ' box' : ''}"><button class="a-round" data-app-back aria-label="${T('Voltar', 'Back')}">${icon('chevL', 24)}</button>${favBtn(p.id, true)}${box ? boxArt(p) : artFor(p)}</div>
     <div class="a-pdp">
       <h1>${esc(L(p.name))}</h1>
       ${box ? `<p class="muted">${T('Vários agricultores; a composição muda todas as semanas.', 'Several farmers; the selection changes every week.')}</p>`

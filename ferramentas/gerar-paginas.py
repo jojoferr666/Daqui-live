@@ -91,7 +91,7 @@ for pid in products:
 # app para telemóvel (web app em /app e base da app Android): mesmos scripts do site + os da app
 APP_SCRIPTS = SCRIPTS + ['app-config', 'app-nativo', 'app-movel']
 # muda a cada versão: obriga o navegador a ir buscar os ficheiros novos (e não misturar com os antigos em cache)
-APP_VERSAO = '2026-11-17-v9'
+APP_VERSAO = '2026-11-17-v10'
 # se faltar um ficheiro no site ou houver um erro antes de a app abrir, mostra o motivo em vez de um ecrã vazio
 APP_GUARDA = r'''<script>
 (function () {

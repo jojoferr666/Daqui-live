@@ -350,3 +350,21 @@ body.app .star-pick label{font-size:2.2rem}
 /* encomendas: registos do Colhe Connosco, com o valor pago */
 .a-order-tot{margin-left:auto;white-space:nowrap;font-weight:700}
 .a-card-img .picon.photo{object-fit:cover}
+/* ---------- versão 10 ---------- */
+/* área do agricultor: botões "fora de stock" e "deixar de vender" numa linha própria, separados */
+body.app .prodlist li>.prod-acts{grid-column:1 / -1;justify-content:flex-start;gap:10px;margin-top:2px}
+body.app .prodlist li>.prod-acts{flex-wrap:nowrap}
+body.app .prodlist li>.prod-acts .btn{min-height:44px;padding:8px 10px;flex:1 1 0;min-width:0;justify-content:center;text-align:center;white-space:normal;font-size:.9rem;line-height:1.15}
+/* gestão → catálogo: cada produto num cartão que cabe no ecrã (sem texto a sair para fora) */
+body.app .cat-tbl .nowrap{white-space:normal}
+body.app .cat-tbl td:first-child{padding-left:0}
+body.app .cat-tbl td:first-child::before{content:none}
+body.app .cat-tbl td:first-child .row-gap{flex-wrap:nowrap;align-items:flex-start;gap:12px}
+body.app .cat-tbl td:first-child .row-gap>span:last-child{min-width:0;overflow-wrap:anywhere}
+body.app .cat-tbl td:last-child:empty{display:none}
+body.app .cat-tbl td{padding-left:96px}
+body.app .cat-tbl td .num{width:72px}
+body.app .cat-tbl td .num.pct{width:56px}
+body.app .cat-tbl td .sel.sm{max-width:86px}
+body.app .acc-sec{overflow-wrap:anywhere}
+body.app #main{overflow-x:clip}

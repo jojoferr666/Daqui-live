@@ -14,11 +14,15 @@ const EMAIL = 'ola@daqui.pt';
 let QS = new URLSearchParams(location.search);   // let: a app (js/app-movel.js) muda-o em cada ecrã
 /* produtos e agricultores criados na gestão não têm pasta própria: abrem como /produtos?id=… e /agricultores?id=… */
 const PAGE_DOC = document.body.dataset.page || 'inicio';
-let PAGE = PAGE_DOC === 'produtos' && QS.get('id') ? 'produto' : PAGE_DOC === 'agricultores' && QS.get('id') ? 'agricultor' : PAGE_DOC;
-let PID = document.body.dataset.id || QS.get('id') || '';
+let PAGE = PAGE_DOC === 'produtos' && QS.get('id') ? 'produto' : PAGE_DOC === 'agricultores' && QS.get('id') ? 'agricultor' : PAGE_DOC === 'subscricao' && QS.get('caixa') ? 'subscrever' : PAGE_DOC;
+let PID = document.body.dataset.id || QS.get('id') || QS.get('caixa') || '';
 const R = document.body.dataset.root || './';
 const FILE = location.protocol === 'file:';
+/* as caixas criadas na gestão não têm pasta própria em /subscricao: abrem como /subscricao?caixa=… */
+const STATIC_BOXES = BOXES.map(b => b.id);
 function href(path = '', query = '') {
+  const sb = /^subscricao\/(.+)$/.exec(path);
+  if (sb && !STATIC_BOXES.includes(sb[1])) { query = 'caixa=' + encodeURIComponent(sb[1]) + (query ? '&' + query : ''); path = 'subscricao'; }
   const base = path ? R + path + (FILE ? '/index.html' : '') : (FILE ? R + 'index.html' : R);
   return base + (query ? '?' + query : '');
 }
@@ -66,8 +70,8 @@ function harvestOf(p) {
 const isStored = p => { const h = harvestOf(p); return !!h && typeof p.harvest === 'string' && (today() - h) / 864e5 > 20; };
 function splitOf(p) {
   if (Array.isArray(p.split) && p.split.length === 3) return p.split;
-  if (p.cat === 'caixas') return { 'caixa-mista': [57, 15, 28], 'caixa-essencial': [56, 19, 25], 'caixa-fruta': [56, 18, 26], 'caixa-legumes': [59, 11, 30] }[p.id];
-  if (p.farmer && F(p.farmer).island) return [52, 18, 30];
+  if (p.cat === 'caixas') return { 'caixa-mista': [57, 15, 28], 'caixa-essencial': [56, 19, 25], 'caixa-fruta': [56, 18, 26], 'caixa-legumes': [59, 11, 30] }[p.id] || [57, 16, 27];
+  if (p.farmer && F(p.farmer) && F(p.farmer).island) return [52, 18, 30];
   return isStored(p) ? [54, 22, 24] : [60, 10, 30];
 }
 /* ---------- produtores e modo de produção ----------
@@ -148,6 +152,15 @@ const recText = (rec, d) => [rec.kg != null ? `${numFmt(rec.kg)} kg ${T('de', 'o
 function harvestRecords(u) { return (u.harvests || []).filter(h => h.record).map(h => ({ h, d: hDay(h), rec: h.record })).filter(x => x.d).sort((a, b) => String(b.rec.at || b.d.date).localeCompare(String(a.rec.at || a.d.date))); }
 /* texto do IVA, junto a cada divisão do preço */
 const VAT_NOTE = () => T('A divisão é feita sobre o valor sem IVA. Os preços mostrados já incluem IVA (6%).', 'The split is of the price before VAT. The prices shown already include VAT (6%).');
+/* avaliações de um dia Colhe Connosco, para mostrar em público: primeiro nome, estrelas, comentário e resposta da Daqui.
+   Com base de dados, quem não é da gestão recebe-as já resumidas (função colhe_avaliacoes, sem dados pessoais). */
+const firstName = s => String(s || '').trim().split(/\s+/)[0] || '';
+function harvestReviews(id) {
+  if (NUVEM.on && !NUVEM.isAdmin()) return ((NUVEM.harvestReviews || {})[id] || []).slice();
+  const d = HD(id); if (!d) return [];
+  return Object.values(USERS).flatMap(u => (u.harvests || []).filter(h => hIs(h, d) && h.rating).map(h => ({ user: u.username, name: firstName(u.name), rating: +h.rating, comment: h.comment || '', reply: h.reply ? h.reply.text : '', at: h.ratedAt || '' })))
+    .sort((a, b) => String(b.at).localeCompare(String(a.at)));
+}
 const stars = n => `<span class="stars" role="img" aria-label="${n} ${T('de 5 estrelas', 'out of 5 stars')}">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= n ? 'on' : ''}">★</i>`).join('')}</span>`;
 /* resumo de um dia: participantes, avaliações (sem nomes) e quilos registados */
 function harvestSummary(id) {
@@ -169,9 +182,36 @@ function otag(p, big = false) {
   return `<span class="otag${big ? ' big' : ''}${h ? '' : ' off'}"><b>${esc(f.name)}, ${esc(f.place)}${more ? ` ${T(`e mais ${more}`, `and ${more} more`)}` : ''}</b><span>${line}</span></span>`;
 }
 /* ícone de cada produto: ficheiro img/produtos/<id>.svg (pode ser editado ou substituído) */
-function artFor(p, cls = '') { return p.photo ? `<img class="picon photo ${cls}" src="${esc(p.photo)}" alt="" loading="lazy" decoding="async">` : `<img class="picon ${cls}" src="${R}img/produtos/${p.icon || p.id}.svg" alt="" loading="lazy" decoding="async">`; }
+function artFor(p, cls = '') { if (p.custom && !p.icon && !p.photo) return crateSVG(p.items || [], 'picon crate ' + cls); return p.photo ? `<img class="picon photo ${cls}" src="${esc(p.photo)}" alt="" loading="lazy" decoding="async">` : `<img class="picon ${cls}" src="${R}img/produtos/${p.icon || p.id}.svg" alt="" loading="lazy" decoding="async">`; }
 /* desenhos que existem em img/produtos (um por produto) para escolher a imagem de um produto novo */
-const ICON_CHOICES = () => [['_novo', T('Desenho genérico', 'Generic drawing')]].concat(PRODUCTS.filter(p => p.cat !== 'caixas' && !p.photo).map(p => [p.icon || p.id, L(p.name)]).filter((x, i, a) => x[0] !== '_novo' && a.findIndex(y => y[0] === x[0]) === i).sort((a, b) => a[1].localeCompare(b[1])));
+/* desenho de uma caixa: as 4 caixas da Daqui têm o seu; as criadas na gestão mostram os produtos escolhidos */
+const boxArt = (p, cls = '') => p.custom ? crateSVG(p.items || [], cls) : crateSVG(p.box || 'mista', cls);
+/* ícones que existem em img/produtos: os dos produtos, os de img/produtos/lista.json e (no GitHub Pages) todos os .svg da pasta no GitHub.
+   Assim, um ícone novo posto na pasta aparece logo para escolher. */
+let ICON_FILES = [];
+const iconLabel = f => (f.charAt(0).toUpperCase() + f.slice(1)).replace(/-/g, ' ');
+function addIconFiles(list) {
+  let n = 0; list.forEach(([f, name]) => { if (!f || /^caixa-/.test(f) || f === '_novo') return; const ex = ICON_FILES.find(x => x[0] === f); if (ex) { if (name && ex[1] === iconLabel(f)) ex[1] = name; } else { ICON_FILES.push([f, name || iconLabel(f)]); n++; } });
+  if (n) refreshIconSelects();
+}
+function loadIconList() {
+  fetch(R + 'img/produtos/lista.json', { cache: 'no-cache' }).then(r => (r.ok ? r.json() : [])).then(l => addIconFiles((Array.isArray(l) ? l : []).map(x => (typeof x === 'string' ? [x, ''] : [x.f, x.n])))).catch(() => {});
+  const gh = /^([^.]+)\.github\.io$/i.exec(location.hostname); if (!gh) return;
+  const seg = new URL(R, location.href).pathname.split('/').filter(Boolean)[0], repo = seg || `${gh[1]}.github.io`, KEY = 'daqui-icones-gh';
+  try { const c = JSON.parse(sessionStorage.getItem(KEY) || 'null'); if (c && Date.now() - c.t < 6e5) return addIconFiles(c.l); } catch (e) {}
+  fetch(`https://api.github.com/repos/${gh[1]}/${repo}/contents/img/produtos`).then(r => (r.ok ? r.json() : [])).then(l => {
+    const list = (Array.isArray(l) ? l : []).filter(x => x.type === 'file' && /\.svg$/i.test(x.name)).map(x => [x.name.replace(/\.svg$/i, ''), '']);
+    try { sessionStorage.setItem(KEY, JSON.stringify({ t: Date.now(), l: list })); } catch (e) {}
+    addIconFiles(list); }).catch(() => {});
+}
+const ICON_CHOICES = () => {
+  const out = [['_novo', T('Desenho genérico', 'Generic drawing')]], seen = new Set(['_novo']);
+  PRODUCTS.filter(p => p.cat !== 'caixas').map(p => [p.icon || p.id, L(p.name)]).concat(ICON_FILES).sort((a, b) => a[1].localeCompare(b[1], 'pt')).forEach(x => { if (!seen.has(x[0])) { seen.add(x[0]); out.push(x); } });
+  return out;
+};
+const iconOptions = sel => ICON_CHOICES().map(([v, n]) => `<option value="${esc(v)}"${v === sel ? ' selected' : ''}>${esc(n)} (${esc(v)}.svg)</option>`).join('') + (sel && !ICON_CHOICES().some(x => x[0] === sel) ? `<option value="${esc(sel)}" selected>${esc(sel)}.svg</option>` : '');
+function refreshIconSelects() { $$('select[data-icon-pick]').forEach(s => { const v = s.value; s.innerHTML = iconOptions(v); }); }
+setTimeout(loadIconList, 0);
 /* fotografia escolhida no telemóvel/computador: reduzida para no máximo 900 px (JPEG) antes de guardar ou enviar */
 function shrinkImage(file, max = 900) {
   return new Promise((ok, no) => { const url = URL.createObjectURL(file), img = new Image();

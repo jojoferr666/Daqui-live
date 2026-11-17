@@ -82,7 +82,7 @@ function farmerArea(u) {
       <ul class="prodlist">${mine.map(p => { const my = myOffers(p, f.id), out = my.every(o => o.outOfStock), others = offersOf(p).filter(o => o.farmer !== f.id).map(o => F(o.farmer)).filter(Boolean);
         return `<li><span class="thumb">${artFor(p)}</span><span><a href="${productHref(p)}"><b>${esc(L(p.name))}</b></a><br><span class="small muted">${my.map(o => `${bioName(o.organic)} ${money(variantPrice(p, o.organic))}${unitLabel(p.unit)}`).join(', ')}; ${T('época', 'season')} ${seasonText(p)}</span>${others.length ? `<br><span class="small muted">${T('Também produzido por', 'Also grown by')} ${others.map(x => esc(x.name)).filter((x, i, a) => a.indexOf(x) === i).join(', ')}</span>` : ''}</span>
         <span class="prod-acts">${inSeason(p) ? `<button class="btn btn-sm ${out ? 'btn-green' : 'btn-line c-tomato'}" data-my-stock="${p.id}">${out ? T('Repor stock', 'Back in stock') : T('Marcar fora de stock', 'Mark out of stock')}</button>` : `<span class="small muted">${T('Fora de época', 'Out of season')}</span>`}
-          <button class="link small c-tomato" data-leave-prod="${p.id}">${icon('trash', 16)} ${T('Deixar de vender', 'Stop selling')}</button></span></li>`; }).join('')}</ul>`
+          <button class="btn btn-sm btn-ghost c-tomato" data-leave-prod="${p.id}">${icon('trash', 16)} ${T('Deixar de vender', 'Stop selling')}</button></span></li>`; }).join('')}</ul>`
       : `<p class="muted mt-s">${pt.approved ? T('Ainda não tem produtos publicados. Proponha o primeiro abaixo.', 'No products published yet. Propose your first one below.') : T('Os seus produtos aparecem aqui depois de a quinta ser aprovada.', 'Your products appear here once the farm is approved.')}</p>`}
     <details class="panel mt"${showNewProd ? ' open' : ''}><summary class="lbl">${icon('plus', 18)} ${T('Adicionar um produto', 'Add a product')}</summary>
       <form class="form mt-s" data-offer-prod novalidate>
@@ -102,7 +102,7 @@ function farmerArea(u) {
           <span class="img-prev" id="pp-prev">${ppPhotoUrl ? `<img src="${ppPhotoUrl}" alt="${T('Fotografia escolhida', 'Chosen photo')}">` : `<img src="${R}img/produtos/${esc(ppIcon)}.svg" alt="">`}</span>
           <div class="img-pick-c">
             ${ppPhotoUrl ? `<p class="small">${T('Vai ser usada a sua fotografia.', 'Your photo will be used.')} <button type="button" class="link" data-pp-photo-rm>${T('Usar um desenho', 'Use a drawing')}</button></p>`
-              : `<div class="field"><label for="pp-icon">${T('Desenho', 'Drawing')}</label><select id="pp-icon" data-pp-icon>${ICON_CHOICES().map(([v, n]) => `<option value="${esc(v)}"${v === ppIcon ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></div>`}
+              : `<div class="field"><label for="pp-icon">${T('Desenho', 'Drawing')}</label><select id="pp-icon" data-pp-icon data-icon-pick>${iconOptions(ppIcon)}</select></div>`}
             <label class="btn btn-line btn-sm c-campo">${icon('camera', 16)} ${ppPhotoUrl ? T('Escolher outra fotografia', 'Choose another photo') : T('Ou carregar uma fotografia', 'Or upload a photo')}<input type="file" id="pp-photo" accept="image/*" class="sr"></label>
             <p class="small muted">${T('A equipa Daqui confirma a imagem com o produto.', 'The Daqui team confirms the picture with the product.')}</p></div></fieldset>
         <p class="err" hidden></p><button class="btn btn-green btn-sm" type="submit">${T('Enviar proposta', 'Send proposal')}</button></form></details>

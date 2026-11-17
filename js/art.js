@@ -297,7 +297,12 @@ function crateSVG(mix = 'mista', cls = '') {
     essencial: [['alface', 14, 6, 0.8, 0], ['banana', 120, -8, 0.8, 0], ['cenoura', 156, 0, 0.78, 6], ['pera', 58, 14, 0.78, -8], ['laranja', 96, 30, 0.68, 0], ['macaGala', 140, 34, 0.62, 0], ['cebola', 32, 40, 0.58, 0], ['batata', 92, 52, 0.56, 0]],
     legumes: [['alhoFrances', 18, -10, 0.95, -6], ['couve', 96, 10, 0.8, 0], ['cenoura', 150, -8, 0.82, 0], ['brocolos', 52, 16, 0.72, 0], ['batata', 120, 40, 0.62, 0], ['cebola', 38, 40, 0.6, 0], ['abobora', 150, 40, 0.55, 0]]
   };
-  const items = (sets[mix] || sets.mista).map(a => g(...a)).join('');
+  /* lista de produtos (caixas criadas na gestão): os desenhos de img/produtos dentro da caixa */
+  const SPOTS = [[6, 30, 78, -8], [60, 14, 80, 4], [118, 12, 78, -4], [166, 26, 70, 8], [30, 50, 70, 6], [92, 48, 72, -6], [146, 50, 68, 4]];
+  const items = Array.isArray(mix)
+    ? mix.map(id => typeof P === 'function' ? P(id) : null).filter(Boolean).slice(0, 7).map((p, i) => { const [x, y, w, r] = SPOTS[i], src = p.photo || `${typeof R === 'string' ? R : './'}img/produtos/${p.icon || p.id}.svg`;
+        return `<image href="${src.replace(/"/g, '&quot;')}" x="${x}" y="${y}" width="${w}" height="${w}" transform="rotate(${r} ${x + w / 2} ${y + w / 2})" preserveAspectRatio="xMidYMid ${p.photo ? 'slice' : 'meet'}"/>`; }).join('')
+    : (sets[mix] || sets.mista).map(a => g(...a)).join('');
   return `<svg class="${cls}" viewBox="0 0 240 200" aria-hidden="true" focusable="false">
     <ellipse cx="120" cy="188" rx="104" ry="9" fill="rgba(34,56,10,.14)"/>${items}
     <path d="M18 96h204l-10 88H28z" fill="${C.wood}"/><path d="M18 96h204v14H18z" fill="${C.woodL}"/>
@@ -328,14 +333,21 @@ function farmSVG(seed = 0, crop = 'pera', cls = '') {
 /* ---------- Mapa de Portugal (continental + Madeira) ---------- */
 const PT_OUTLINE = [[41.87,-8.87],[41.69,-8.85],[41.53,-8.79],[41.38,-8.76],[41.18,-8.69],[41.0,-8.65],[40.84,-8.68],[40.64,-8.75],[40.43,-8.81],[40.15,-8.87],[39.92,-8.95],[39.75,-9.03],[39.6,-9.08],[39.43,-9.23],[39.37,-9.4],[39.2,-9.36],[38.96,-9.42],[38.78,-9.5],[38.7,-9.42],[38.69,-9.22],[38.76,-9.08],[38.9,-8.97],[38.8,-8.92],[38.66,-9.03],[38.64,-9.24],[38.48,-9.19],[38.41,-9.22],[38.44,-9.08],[38.52,-8.89],[38.45,-8.86],[38.2,-8.8],[37.95,-8.87],[37.73,-8.82],[37.45,-8.8],[37.2,-8.9],[37.02,-8.99],[37.01,-8.92],[37.08,-8.67],[37.12,-8.53],[37.09,-8.25],[37.07,-8.1],[36.96,-7.89],[37.08,-7.7],[37.12,-7.62],[37.17,-7.41],[37.4,-7.44],[37.56,-7.52],[37.85,-7.2],[38.0,-7.05],[38.14,-6.94],[38.22,-7.1],[38.4,-7.3],[38.63,-7.26],[38.8,-7.08],[38.88,-7.03],[39.02,-6.98],[39.2,-7.08],[39.4,-7.3],[39.66,-7.53],[39.72,-7.02],[39.85,-6.96],[40.03,-6.86],[40.25,-6.8],[40.45,-6.82],[40.63,-6.8],[40.85,-6.82],[41.03,-6.93],[41.15,-6.68],[41.3,-6.45],[41.5,-6.25],[41.62,-6.2],[41.83,-6.55],[41.97,-6.62],[41.93,-6.85],[41.99,-7.05],[41.9,-7.2],[41.95,-7.45],[41.86,-7.68],[41.88,-7.9],[41.95,-8.05],[42.15,-8.2],[42.08,-8.42],[42.03,-8.64]];
 const ptXY = (lat, lon) => [((lon + 10.65) * 77).toFixed(1), ((42.35 - lat) * 100).toFixed(1)];
+/* Açores: cada ilha desenhada como uma elipse (centro, meio-comprimento e meia-largura em graus, rotação) */
+const ACORES = [['Flores', 39.44, -31.20, .085, .06, -10], ['Corvo', 39.70, -31.10, .035, .03, 0], ['Faial', 38.58, -28.70, .1, .07, 0], ['Pico', 38.47, -28.33, .23, .07, -12],
+  ['São Jorge', 38.65, -28.08, .28, .045, -20], ['Graciosa', 39.05, -28.02, .06, .04, 0], ['Terceira', 38.72, -27.22, .16, .1, 0], ['São Miguel', 37.78, -25.50, .37, .08, -8], ['Santa Maria', 36.97, -25.10, .07, .05, 0]];
 const MADEIRA = [[32.85,-17.27],[32.8,-17.1],[32.75,-16.9],[32.72,-16.72],[32.65,-16.82],[32.64,-17.0],[32.7,-17.15],[32.75,-17.26]];
 function portugalMapSVG(farmers, lang, active) {
   const path = 'M' + PT_OUTLINE.map(p => ptXY(...p).join(' ')).join('L') + 'Z';
   const cities = [['Porto', 41.15, -8.61], ['Aveiro', 40.64, -8.65], ['Coimbra', 40.21, -8.43], [lang === 'en' ? 'Lisbon' : 'Lisboa', 38.72, -9.14], ['Évora', 38.57, -7.91], ['Faro', 37.02, -7.93], ['Bragança', 41.81, -6.76]];
   const mx = (lon) => (18 + (lon + 17.3) * 60).toFixed(1), my = (lat) => (470 + (32.9 - lat) * 60).toFixed(1);
   const madPath = 'M' + MADEIRA.map(([la, lo]) => `${mx(lo)} ${my(la)}`).join('L') + 'Z';
+  /* quadro dos Açores (canto superior esquerdo, sobre o mar) */
+  const ax = lon => +(16 + (lon + 31.5) * 17.5).toFixed(1), ay = lat => +(30 + (39.85 - lat) * 17.5).toFixed(1);
+  const acores = ACORES.map(([n, la, lo, a, b, r]) => `<ellipse cx="${ax(lo)}" cy="${ay(la)}" rx="${Math.max(1.6, a * 17.5).toFixed(1)}" ry="${Math.max(1.4, b * 17.5).toFixed(1)}" transform="rotate(${r} ${ax(lo)} ${ay(la)})" fill="#F3F1DC" stroke="#B9C59A" stroke-width="1"/>`).join('');
+  const islandOf = f => f.island || (ISLAND_REGIONS.includes(f.region) ? f.region : '');
   const pins = farmers.map(f => {
-    const [x, y] = f.island === 'madeira' ? [mx(f.lon), my(f.lat)] : ptXY(f.lat, f.lon);
+    const isl = islandOf(f), [x, y] = isl === 'madeira' ? [mx(f.lon), my(f.lat)] : isl === 'acores' ? [ax(f.lon), ay(f.lat)] : ptXY(f.lat, f.lon);
     const on = f.id === active;
     return `<a class="pin${on ? ' on' : ''}" href="${f.href}" data-pin="${f.id}" aria-label="${f.name}, ${f.place}">
       <g transform="translate(${x} ${y})"><path d="M0 0c-6-8-10-13-10-19a10 10 0 0 1 20 0c0 6-4 11-10 19z" fill="${on ? C.pera : C.campo}" stroke="${on ? C.campo : '#fff'}" stroke-width="2"/><circle cx="0" cy="-19" r="3.6" fill="${on ? C.campo : C.pera}"/></g></a>`;
@@ -353,6 +365,8 @@ function portugalMapSVG(farmers, lang, active) {
     ${cities.map(([n, la, lo]) => { const [x, y] = ptXY(la, lo); return `<circle cx="${x}" cy="${y}" r="2.6" fill="#8A9A6A"/><text x="${+x + 5}" y="${+y + 4}" font-size="10" fill="#6A7A4A">${n}</text>`; }).join('')}
     <rect x="10" y="452" width="96" height="58" rx="10" fill="#CFE0DA" stroke="#B9C59A"/><text x="58" y="503" text-anchor="middle" font-size="10" fill="#4D6A6A">Madeira</text>
     <path d="${madPath}" fill="#F3F1DC" stroke="#B9C59A" stroke-width="1.2"/>
+    <rect x="8" y="10" width="128" height="76" rx="10" fill="#CFE0DA" stroke="#B9C59A"/><text x="130" y="24" text-anchor="end" font-size="10" fill="#4D6A6A">${lang === 'en' ? 'Azores' : 'Açores'}</text>
+    ${acores}
     <text x="290" y="548" font-size="10" fill="#4D6A6A" font-style="italic">${lang === 'en' ? 'Illustrative map' : 'Mapa ilustrativo'}</text>
     ${pins}
   </svg>`;
@@ -370,6 +384,14 @@ function aveiroMapSVG(markers, lang, active, opts = {}) {
     return `<a class="pin${on ? ' on' : ''}" href="${m.href || '#' + m.id}" data-rest="${m.id}" aria-label="${m.name}"><g transform="translate(${x} ${y})">
       <path d="M0 0c-7-9-12-15-12-22a12 12 0 0 1 24 0c0 7-5 13-12 22z" fill="${on ? C.pera : C.campo}" stroke="#fff" stroke-width="2.2"/>
       <text y="-17.5" text-anchor="middle" font-size="12" font-weight="700" fill="${on ? C.campo : C.pera}">${opts.icon ? '•' : i + 1}</text></g></a>`; }).join('');
+  /* mapa real por baixo dos marcadores: mosaicos do OpenStreetMap (estilo CARTO). Sem internet, fica o desenho acima. */
+  const Z = 14, n = 2 ** Z, tx = lon => (lon + 180) / 360 * n, ty = lat => { const r = lat * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n; };
+  const lonOf = x => x / n * 360 - 180, latOf = y => Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n))) * 180 / Math.PI;
+  let tiles = '';
+  for (let x = Math.floor(tx(-8.672)); x <= Math.floor(tx(-8.632)); x++) for (let y = Math.floor(ty(40.652)); y <= Math.floor(ty(40.626)); y++) {
+    const [x0, y0] = avXY(latOf(y), lonOf(x)), [x1, y1] = avXY(latOf(y + 1), lonOf(x + 1));
+    tiles += `<image href="https://${'abcd'[(x + y) % 4]}.basemaps.cartocdn.com/rastertiles/voyager/${Z}/${x}/${y}@2x.png" x="${x0}" y="${y0}" width="${(x1 - x0).toFixed(1)}" height="${(y1 - y0).toFixed(1)}" preserveAspectRatio="none"/>`;
+  }
   return `<svg class="avmap" viewBox="0 0 640 548" role="img" aria-label="${en ? 'Map of Aveiro city centre' : 'Mapa do centro de Aveiro'}">
     <defs>
       <clipPath id="av-clip"><rect width="640" height="548" rx="18"/></clipPath>
@@ -412,9 +434,10 @@ function aveiroMapSVG(markers, lang, active, opts = {}) {
     ${lab(268, 120, 'Beira-Mar', { s: 10, c: '#8A8A70' })}${lab(408, 404, 'Glória', { s: 10, c: '#8A8A70' })}${lab(480, 56, 'Esgueira', { s: 10, c: '#8A8A70' })}
     ${lab(120, 96, en ? 'Salt pans' : 'Salinas', { s: 11, c: '#4D6A6A', it: 1, halo: '#E2ECE8' })}${lab(120, 350, en ? 'Salt pans' : 'Salinas', { s: 11, c: '#4D6A6A', it: 1, halo: '#E2ECE8' })}
     ${lab(26, 380, 'Ria de Aveiro', { s: 12, c: '#3E6E6A', it: 1, r: -82, halo: W })}
+    ${opts.drawn ? '' : `<g class="av-tiles">${tiles}</g>`}
     <g transform="translate(596 40)"><circle r="16" fill="#fff" opacity=".85"/><path d="M0-12L5 4 0 1-5 4Z" fill="${C.campo}"/><text y="13" text-anchor="middle" font-size="9" font-weight="700" fill="${C.campo}">N</text></g>
     <g transform="translate(520 520)"><rect x="-6" y="-14" width="110" height="24" rx="6" fill="#fff" opacity=".85"/><path d="M0 0h95" stroke="${C.folha}" stroke-width="2"/><path d="M0-4v8M95-4v8M47.5-3v6" stroke="${C.folha}" stroke-width="1.5"/><text x="47" y="-4" text-anchor="middle" font-size="9" fill="${C.folha}">500 m</text></g>
-    ${lab(14, 536, en ? 'Approximate positions' : 'Posições aproximadas', { s: 10, c: '#4D6A6A', it: 1, halo: W })}
+    ${opts.drawn ? lab(14, 536, en ? 'Approximate positions' : 'Posições aproximadas', { s: 10, c: '#4D6A6A', it: 1, halo: W }) : `<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener"><rect x="8" y="526" width="226" height="16" rx="4" fill="#fff" opacity=".85"/><text x="14" y="537.5" font-size="9.5" fill="#4D5A3F">© OpenStreetMap contributors © CARTO</text></a>`}
     ${pins}
     </g></svg>`;
 }
@@ -495,6 +518,7 @@ const IC = {
   tiktok: '<path d="M14 3v12a4 4 0 11-4-4"/><path d="M14 3c.5 3 2.5 5 6 5"/>',
   minus: '<path d="M5 12h14"/>', plus: '<path d="M12 5v14M5 12h14"/>',
   trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
   filter: '<path d="M4 5h16l-6 8v6l-4-2v-4z"/>', bell: '<path d="M6 16V11a6 6 0 0112 0v5l2 2H4z"/><path d="M10 20a2 2 0 004 0"/>',
   eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   logout: '<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/>', pause: '<path d="M9 5v14M15 5v14"/>', play: '<path d="M7 4l13 8-13 8z"/>',

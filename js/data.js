@@ -4,11 +4,14 @@
 
 /* ---------- Agricultores ---------- */
 const REGIONS = {
-  oeste: { pt: 'Oeste', en: 'Oeste' }, aveiro: { pt: 'Região de Aveiro', en: 'Aveiro region' },
-  beiras: { pt: 'Beiras', en: 'Beiras' }, ribatejo: { pt: 'Ribatejo', en: 'Ribatejo' },
-  alentejo: { pt: 'Alentejo', en: 'Alentejo' }, algarve: { pt: 'Algarve', en: 'Algarve' },
-  tras: { pt: 'Trás-os-Montes', en: 'Trás-os-Montes' }, madeira: { pt: 'Madeira', en: 'Madeira' }
+  minho: { pt: 'Minho', en: 'Minho' }, douro: { pt: 'Porto e Douro', en: 'Porto and Douro' }, tras: { pt: 'Trás-os-Montes', en: 'Trás-os-Montes' },
+  aveiro: { pt: 'Região de Aveiro', en: 'Aveiro region' }, beiras: { pt: 'Beiras', en: 'Beiras' }, coimbra: { pt: 'Região de Coimbra', en: 'Coimbra region' },
+  leiria: { pt: 'Região de Leiria', en: 'Leiria region' }, oeste: { pt: 'Oeste', en: 'Oeste' }, ribatejo: { pt: 'Ribatejo', en: 'Ribatejo' },
+  lisboa: { pt: 'Lisboa e Setúbal', en: 'Lisbon and Setúbal' }, alentejo: { pt: 'Alentejo', en: 'Alentejo' }, algarve: { pt: 'Algarve', en: 'Algarve' },
+  madeira: { pt: 'Madeira', en: 'Madeira' }, acores: { pt: 'Açores', en: 'Azores' }
 };
+/* regiões nas ilhas: no mapa aparecem nos quadros da Madeira e dos Açores */
+const ISLAND_REGIONS = ['madeira', 'acores'];
 const FARMERS = [
   { id:'joaquim', name:'Joaquim Santos', farm:'Quinta do Casal Novo', place:'Cadaval', region:'oeste', lat:39.243, lon:-9.103, since:1987, crop:'pera', seed:0,
     story:{ pt:'Terceira geração a cultivar Pera Rocha no Cadaval. Durante anos vendeu tudo a um armazenista que decidia o preço no fim da campanha. Na Daqui vê, em cada pera, quanto do preço fica com ele.',
@@ -311,4 +314,5 @@ const GROUP_TIPS = {
 };
 
 /* centro aproximado de cada região: usado para pôr no mapa as quintas novas aprovadas na gestão */
-const REGION_CENTER = { oeste:[39.3,-9.15], aveiro:[40.6,-8.6], beiras:[40.4,-7.6], ribatejo:[39.25,-8.6], alentejo:[38.5,-7.9], algarve:[37.15,-8.2], tras:[41.6,-7.0], madeira:[32.72,-16.95] };
+const REGION_CENTER = { minho:[41.7,-8.4], douro:[41.15,-8.0], tras:[41.6,-7.0], aveiro:[40.6,-8.6], beiras:[40.4,-7.6], coimbra:[40.2,-8.4], leiria:[39.75,-8.8], oeste:[39.3,-9.15], ribatejo:[39.25,-8.6],
+  lisboa:[38.7,-9.0], alentejo:[38.5,-7.9], algarve:[37.15,-8.2], madeira:[32.72,-16.95], acores:[37.78,-25.55] };
