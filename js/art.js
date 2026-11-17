@@ -384,13 +384,17 @@ function aveiroMapSVG(markers, lang, active, opts = {}) {
     return `<a class="pin${on ? ' on' : ''}" href="${m.href || '#' + m.id}" data-rest="${m.id}" aria-label="${m.name}"><g transform="translate(${x} ${y})">
       <path d="M0 0c-7-9-12-15-12-22a12 12 0 0 1 24 0c0 7-5 13-12 22z" fill="${on ? C.pera : C.campo}" stroke="#fff" stroke-width="2.2"/>
       <text y="-17.5" text-anchor="middle" font-size="12" font-weight="700" fill="${on ? C.campo : C.pera}">${opts.icon ? '•' : i + 1}</text></g></a>`; }).join('');
-  /* mapa real por baixo dos marcadores: mosaicos do OpenStreetMap (estilo CARTO). Sem internet, fica o desenho acima. */
+  /* mapa real por baixo dos marcadores: mosaicos do OpenStreetMap (não precisam de chave). Sem internet, fica o desenho acima.
+     Para usar o estilo CARTO (mais claro), peça uma chave grátis em carto.com/basemaps/apikey e acrescente ao fim de js/supabase-config.js:
+       const MAPA_CARTO_CHAVE = 'a-sua-chave';                                                                                      */
+  const CARTO = typeof MAPA_CARTO_CHAVE === 'string' && MAPA_CARTO_CHAVE.trim() ? MAPA_CARTO_CHAVE.trim() : '';
   const Z = 14, n = 2 ** Z, tx = lon => (lon + 180) / 360 * n, ty = lat => { const r = lat * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n; };
   const lonOf = x => x / n * 360 - 180, latOf = y => Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n))) * 180 / Math.PI;
   let tiles = '';
   for (let x = Math.floor(tx(-8.672)); x <= Math.floor(tx(-8.632)); x++) for (let y = Math.floor(ty(40.652)); y <= Math.floor(ty(40.626)); y++) {
     const [x0, y0] = avXY(latOf(y), lonOf(x)), [x1, y1] = avXY(latOf(y + 1), lonOf(x + 1));
-    tiles += `<image href="https://${'abcd'[(x + y) % 4]}.basemaps.cartocdn.com/rastertiles/voyager/${Z}/${x}/${y}@2x.png" x="${x0}" y="${y0}" width="${(x1 - x0).toFixed(1)}" height="${(y1 - y0).toFixed(1)}" preserveAspectRatio="none"/>`;
+    const src = CARTO ? `https://basemaps.cartocdn.com/rastertiles/voyager/${Z}/${x}/${y}@2x.png?key=${encodeURIComponent(CARTO)}` : `https://tile.openstreetmap.org/${Z}/${x}/${y}.png`;
+    tiles += `<image href="${src}" x="${x0}" y="${y0}" width="${(x1 - x0).toFixed(1)}" height="${(y1 - y0).toFixed(1)}" preserveAspectRatio="none"/>`;
   }
   return `<svg class="avmap" viewBox="0 0 640 548" role="img" aria-label="${en ? 'Map of Aveiro city centre' : 'Mapa do centro de Aveiro'}">
     <defs>
@@ -437,7 +441,7 @@ function aveiroMapSVG(markers, lang, active, opts = {}) {
     ${opts.drawn ? '' : `<g class="av-tiles">${tiles}</g>`}
     <g transform="translate(596 40)"><circle r="16" fill="#fff" opacity=".85"/><path d="M0-12L5 4 0 1-5 4Z" fill="${C.campo}"/><text y="13" text-anchor="middle" font-size="9" font-weight="700" fill="${C.campo}">N</text></g>
     <g transform="translate(520 520)"><rect x="-6" y="-14" width="110" height="24" rx="6" fill="#fff" opacity=".85"/><path d="M0 0h95" stroke="${C.folha}" stroke-width="2"/><path d="M0-4v8M95-4v8M47.5-3v6" stroke="${C.folha}" stroke-width="1.5"/><text x="47" y="-4" text-anchor="middle" font-size="9" fill="${C.folha}">500 m</text></g>
-    ${opts.drawn ? lab(14, 536, en ? 'Approximate positions' : 'Posições aproximadas', { s: 10, c: '#4D6A6A', it: 1, halo: W }) : `<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener"><rect x="8" y="526" width="226" height="16" rx="4" fill="#fff" opacity=".85"/><text x="14" y="537.5" font-size="9.5" fill="#4D5A3F">© OpenStreetMap contributors © CARTO</text></a>`}
+    ${opts.drawn ? lab(14, 536, en ? 'Approximate positions' : 'Posições aproximadas', { s: 10, c: '#4D6A6A', it: 1, halo: W }) : `<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener"><rect x="8" y="526" width="${CARTO ? 226 : 172}" height="16" rx="4" fill="#fff" opacity=".85"/><text x="14" y="537.5" font-size="9.5" fill="#4D5A3F">© OpenStreetMap contributors${CARTO ? ' © CARTO' : ''}</text></a>`}
     ${pins}
     </g></svg>`;
 }
